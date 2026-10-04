@@ -1,0 +1,61 @@
+# ========================
+# Android / Gradle
+# ========================
+*.iml
+.gradle/
+local.properties
+/.idea/
+.DS_Store
+/build/
+app/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# APK / AAB / mapping outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+proguard/
+*.keystore
+*.jks
+
+# Generated files
+bin/
+gen/
+out/
+release/
+
+# Kotlin specific
+*.class
+*.kotlin_module
+
+# Lint
+lint/intermediates/
+lint/generated/
+lint/outputs/
+lint/tmp/
+lint/reports/
+
+# Google services / secrets
+google-services.json
+GoogleService-Info.plist
+
+# Signing configs – never commit your keystore or signing props
+signing.properties
+keystore.properties
+
+# OS-generated
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor / IDE
+*.swp
+*~
+.vscode/
+*.orig
+
+# Temp build logs
+build_output.txt
