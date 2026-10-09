@@ -34,9 +34,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,6 +54,7 @@ import com.gyan.app.backup.BackupManager
 import com.gyan.app.BuildConfig
 import com.gyan.app.data.GyanRepository
 import com.gyan.app.reminders.LectureAlarmScheduler
+import com.gyan.app.updates.ApkInstaller
 import com.gyan.app.updates.GitHubUpdates
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -67,7 +71,10 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     var updateMessage by remember { mutableStateOf("Check GitHub for the latest release.") }
     var updateUrl by remember { mutableStateOf<String?>(null) }
+    var apkDownloadUrl by remember { mutableStateOf<String?>(null) }
     var checkingUpdate by remember { mutableStateOf(false) }
+    var downloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableFloatStateOf(0f) }
     var classRemindersEnabled by remember {
         mutableStateOf(context.getSharedPreferences("gyan_preferences", android.content.Context.MODE_PRIVATE)
             .getBoolean("class_reminders_enabled", true))
@@ -219,30 +226,74 @@ fun SettingsScreen(
                 Text("App updates", style = MaterialTheme.typography.titleMedium)
                 Text(updateMessage, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (downloading) {
+                    if (downloadProgress > 0f) {
+                        LinearProgressIndicator(
+                            progress = { downloadProgress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                }
                 Button(
                     onClick = {
                         checkingUpdate = true
-                        updateMessage = "Checking GitHub Releases…"
+                        updateMessage = "Checking GitHub Releases..."
                         updateUrl = null
+                        apkDownloadUrl = null
                         scope.launch {
                             runCatching { GitHubUpdates.latest(BuildConfig.VERSION_NAME) }
                                 .onSuccess { update ->
                                     updateUrl = update?.releaseUrl
-                                    updateMessage = if (update == null) "You’re up to date (v${BuildConfig.VERSION_NAME})."
-                                    else "GYAN ${update.version} is available. Open the release to download and install it."
+                                    apkDownloadUrl = update?.apkDownloadUrl
+                                    updateMessage = if (update == null)
+                                        "You're up to date (v${BuildConfig.VERSION_NAME})."
+                                    else if (update.apkDownloadUrl != null)
+                                        "GYAN ${update.version} is available! Tap below to download & install."
+                                    else
+                                        "GYAN ${update.version} is available. Open the release page to download."
                                 }
-                                .onFailure { updateMessage = "Could not check right now. Please try again while online." }
+                                .onFailure { updateMessage = "Could not check right now. Try again while online." }
                             checkingUpdate = false
                         }
                     },
-                    enabled = !checkingUpdate,
+                    enabled = !checkingUpdate && !downloading,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text(if (checkingUpdate) "Checking…" else "Check for updates") }
+                ) { Text(if (checkingUpdate) "Checking..." else "Check for updates") }
+
+                apkDownloadUrl?.let { apkUrl ->
+                    Button(
+                        onClick = {
+                            downloading = true
+                            downloadProgress = 0f
+                            updateMessage = "Downloading update..."
+                            scope.launch {
+                                runCatching {
+                                    ApkInstaller.downloadAndInstall(context, apkUrl) { dl, total ->
+                                        downloadProgress = if (total > 0) dl.toFloat() / total else 0f
+                                        val pct = if (total > 0) " (${(downloadProgress * 100).toInt()}%)" else ""
+                                        updateMessage = "Downloading update$pct..."
+                                    }
+                                }.onSuccess {
+                                    updateMessage = "Install prompt opened. Follow the on-screen steps."
+                                }.onFailure {
+                                    updateMessage = "Download failed: ${it.message}"
+                                }
+                                downloading = false
+                                downloadProgress = 0f
+                            }
+                        },
+                        enabled = !downloading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (downloading) "Downloading..." else "Download & Install update") }
+                }
+
                 updateUrl?.let { url ->
                     OutlinedButton(
                         onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Open GitHub release") }
+                    ) { Text("Open GitHub release page") }
                 }
             }
         }

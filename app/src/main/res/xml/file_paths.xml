@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <files-path name="gyan_files" path="gyan/" />
+    <cache-path name="gyan_updates" path="updates/" />
 </paths>
