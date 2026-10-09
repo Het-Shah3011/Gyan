@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FloatingActionButton
@@ -75,6 +76,7 @@ fun SubscriptionsTab() {
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<SubscriptionEntity?>(null) }
+    var editTarget by remember { mutableStateOf<SubscriptionEntity?>(null) }
 
     Scaffold(
         floatingActionButton = {
@@ -108,6 +110,7 @@ fun SubscriptionsTab() {
                                     color = if (days <= 3) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                                 )
                             }
+                            IconButton(onClick = { editTarget = s }) { Icon(Icons.Filled.Edit, contentDescription = "Edit subscription", tint = MaterialTheme.colorScheme.primary) }
                             IconButton(onClick = { deleteTarget = s }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                             }
@@ -119,26 +122,31 @@ fun SubscriptionsTab() {
         }
     }
 
-    if (showAdd) {
-        var name by remember { mutableStateOf("") }
-        var amount by remember { mutableStateOf("") }
-        var cycle by remember { mutableStateOf("Monthly") }
-        var renewalText by remember { mutableStateOf("") }
+    if (showAdd || editTarget != null) {
+        val original = editTarget
+        var name by remember(original?.id) { mutableStateOf(original?.name.orEmpty()) }
+        var amount by remember(original?.id) { mutableStateOf(original?.amount?.toString().orEmpty()) }
+        var cycle by remember(original?.id) { mutableStateOf(if ((original?.cycleDays ?: 30) >= 365) "Yearly" else "Monthly") }
+        var renewalText by remember(original?.id) { mutableStateOf(original?.nextRenewalMillis?.let { java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(it)) }.orEmpty()) }
+        var notes by remember(original?.id) { mutableStateOf(original?.notes.orEmpty()) }
         val renewal = parseDateTime(renewalText)
         DialogForm(
-            title = "Add subscription",
-            onDismiss = { showAdd = false },
+            title = if (original == null) "Add subscription" else "Edit subscription",
+            onDismiss = { showAdd = false; editTarget = null },
             saveEnabled = name.isNotBlank() && amount.toFloatOrNull() != null && renewal != null,
             onSave = {
                 scope.launch {
-                    val id = repo.dao.upsertSubscription(
-                        SubscriptionEntity(
+                    original?.let { ReminderScheduler.cancel(context, (200000 + it.id).toInt()) }
+                    val entity = original?.copy(name = name.trim(), amount = amount.toFloat(), cycleDays = if (cycle == "Yearly") 365 else 30, nextRenewalMillis = renewal!!, notes = notes.trim())
+                        ?: SubscriptionEntity(
                             name = name.trim(),
                             amount = amount.toFloatOrNull() ?: 0f,
                             cycleDays = if (cycle == "Yearly") 365 else 30,
-                            nextRenewalMillis = renewal!!
+                            nextRenewalMillis = renewal!!,
+                            notes = notes.trim()
                         )
-                    )
+                    val savedId = repo.dao.upsertSubscription(entity)
+                    val id = if (original != null) original.id else savedId
                     ReminderScheduler.schedule(
                         context, (200000 + id).toInt(),
                         "Subscription renewal",
@@ -147,6 +155,7 @@ fun SubscriptionsTab() {
                     )
                 }
                 showAdd = false
+                editTarget = null
             }
         ) {
             FormField("Name (e.g. Spotify)", name) { name = it }
@@ -154,6 +163,7 @@ fun SubscriptionsTab() {
             Text("Billing cycle", style = MaterialTheme.typography.labelMedium)
             ChipRow(listOf("Monthly", "Yearly"), cycle) { cycle = it }
             FormField("Next renewal date (dd/MM/yyyy)", renewalText) { renewalText = it }
+            FormField("Notes", notes) { notes = it }
         }
     }
 
@@ -182,6 +192,7 @@ fun WarrantiesTab() {
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<WarrantyEntity?>(null) }
+    var editTarget by remember { mutableStateOf<WarrantyEntity?>(null) }
     val now = System.currentTimeMillis()
 
     Scaffold(
@@ -206,6 +217,7 @@ fun WarrantiesTab() {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(w.product, style = MaterialTheme.typography.titleMedium)
+                                IconButton(onClick = { editTarget = w }) { Icon(Icons.Filled.Edit, contentDescription = "Edit warranty", tint = MaterialTheme.colorScheme.primary) }
                                 IconButton(onClick = { deleteTarget = w }) {
                                     Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                                 }
@@ -231,31 +243,30 @@ fun WarrantiesTab() {
         }
     }
 
-    if (showAdd) {
-        var product by remember { mutableStateOf("") }
-        var purchaseText by remember { mutableStateOf("") }
-        var months by remember { mutableStateOf("12") }
+    if (showAdd || editTarget != null) {
+        val original = editTarget
+        var product by remember(original?.id) { mutableStateOf(original?.product.orEmpty()) }
+        var purchaseText by remember(original?.id) { mutableStateOf(original?.purchaseMillis?.let { java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(it)) }.orEmpty()) }
+        var months by remember(original?.id) { mutableStateOf(original?.warrantyMonths?.toString() ?: "12") }
+        var notes by remember(original?.id) { mutableStateOf(original?.notes.orEmpty()) }
         val purchase = parseDateTime(purchaseText)
         DialogForm(
-            title = "Add warranty",
-            onDismiss = { showAdd = false },
+            title = if (original == null) "Add warranty" else "Edit warranty",
+            onDismiss = { showAdd = false; editTarget = null },
             saveEnabled = product.isNotBlank() && purchase != null && (months.toIntOrNull() ?: 0) > 0,
             onSave = {
                 scope.launch {
-                    repo.dao.upsertWarranty(
-                        WarrantyEntity(
-                            product = product.trim(),
-                            purchaseMillis = purchase!!,
-                            warrantyMonths = months.toIntOrNull() ?: 12
-                        )
-                    )
+                    repo.dao.upsertWarranty(original?.copy(product = product.trim(), purchaseMillis = purchase!!, warrantyMonths = months.toInt(), notes = notes.trim())
+                        ?: WarrantyEntity(product = product.trim(), purchaseMillis = purchase!!, warrantyMonths = months.toIntOrNull() ?: 12, notes = notes.trim()))
                 }
                 showAdd = false
+                editTarget = null
             }
         ) {
             FormField("Product (e.g. Dell G15 laptop)", product) { product = it }
             FormField("Purchase date (dd/MM/yyyy)", purchaseText) { purchaseText = it }
             FormField("Warranty length in months", months) { months = it.filter { c -> c.isDigit() } }
+            FormField("Notes", notes) { notes = it }
         }
     }
 
@@ -281,6 +292,7 @@ fun ScholarshipsTab() {
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ScholarshipEntity?>(null) }
+    var editTarget by remember { mutableStateOf<ScholarshipEntity?>(null) }
     val statuses = listOf("TRACKING", "APPLIED", "APPROVED", "REJECTED")
 
     Scaffold(
@@ -308,6 +320,7 @@ fun ScholarshipsTab() {
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
+                                IconButton(onClick = { editTarget = s }) { Icon(Icons.Filled.Edit, contentDescription = "Edit scholarship", tint = MaterialTheme.colorScheme.primary) }
                                 IconButton(onClick = { deleteTarget = s }) {
                                     Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                                 }
@@ -357,34 +370,33 @@ fun ScholarshipsTab() {
         }
     }
 
-    if (showAdd) {
-        var name by remember { mutableStateOf("") }
-        var amount by remember { mutableStateOf("") }
-        var deadlineText by remember { mutableStateOf("") }
-        var requirements by remember { mutableStateOf("") }
+    if (showAdd || editTarget != null) {
+        val original = editTarget
+        var name by remember(original?.id) { mutableStateOf(original?.name.orEmpty()) }
+        var amount by remember(original?.id) { mutableStateOf(original?.amount?.takeIf { it > 0f }?.toString().orEmpty()) }
+        var deadlineText by remember(original?.id) { mutableStateOf(original?.deadlineMillis?.let { java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(it)) }.orEmpty()) }
+        var requirements by remember(original?.id) { mutableStateOf(original?.requirements.orEmpty()) }
+        var status by remember(original?.id) { mutableStateOf(original?.status ?: "TRACKING") }
         val deadline = parseDateTime(deadlineText)
         DialogForm(
-            title = "Add scholarship",
-            onDismiss = { showAdd = false },
+            title = if (original == null) "Add scholarship" else "Edit scholarship",
+            onDismiss = { showAdd = false; editTarget = null },
             saveEnabled = name.isNotBlank(),
             onSave = {
                 scope.launch {
-                    repo.dao.upsertScholarship(
-                        ScholarshipEntity(
-                            name = name.trim(),
-                            amount = amount.toFloatOrNull() ?: 0f,
-                            deadlineMillis = deadline,
-                            requirements = requirements.trim()
-                        )
-                    )
+                    repo.dao.upsertScholarship(original?.copy(name = name.trim(), amount = amount.toFloatOrNull() ?: 0f, deadlineMillis = deadline, requirements = requirements.trim(), status = status)
+                        ?: ScholarshipEntity(name = name.trim(), amount = amount.toFloatOrNull() ?: 0f, deadlineMillis = deadline, requirements = requirements.trim(), status = status))
                 }
                 showAdd = false
+                editTarget = null
             }
         ) {
             FormField("Scholarship name", name) { name = it }
             FormField("Amount (optional)", amount) { amount = it.filter { c -> c.isDigit() || c == '.' } }
             FormField("Application deadline (dd/MM/yyyy)", deadlineText) { deadlineText = it }
             FormField("Required documents / notes", requirements) { requirements = it }
+            Text("Application status", style = MaterialTheme.typography.labelMedium)
+            ChipRow(statuses, status) { status = it }
         }
     }
 

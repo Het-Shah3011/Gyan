@@ -19,7 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
@@ -55,20 +57,35 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gyan.app.data.AttendanceEntity
+import com.gyan.app.data.AttendanceOverrideEntity
+import com.gyan.app.data.ClassNoteEntity
 import com.gyan.app.data.GyanRepository
 import com.gyan.app.data.SessionEntity
 import com.gyan.app.data.SubjectEntity
 import com.gyan.app.data.TaskEntity
 import com.gyan.app.reminders.BootReceiver.Companion.requestCodeFor
+import com.gyan.app.reminders.LectureAlarmScheduler
 import com.gyan.app.reminders.ReminderScheduler
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 private val DAY_LABELS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 private val DAY_VALUES = listOf(
     Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY,
     Calendar.FRIDAY, Calendar.SATURDAY, Calendar.SUNDAY
 )
+
+private fun dateForNextWeekday(dayOfWeek: Int): Long = Calendar.getInstance().apply {
+    set(Calendar.HOUR_OF_DAY, 0)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+    val daysAhead = (dayOfWeek - get(Calendar.DAY_OF_WEEK) + 7) % 7
+    add(Calendar.DAY_OF_YEAR, daysAhead)
+}.timeInMillis
 
 @Composable
 fun StudyScreen() {
@@ -135,23 +152,58 @@ fun TimetableTab() {
     val repo = remember { GyanRepository.get(context) }
     val subjects by repo.dao.subjectsFlow().collectAsStateWithLifecycle(emptyList())
     val sessions by repo.dao.sessionsFlow().collectAsStateWithLifecycle(emptyList())
+    val attendance by repo.dao.attendanceFlow().collectAsStateWithLifecycle(emptyList())
+    val overrides by repo.dao.attendanceOverridesFlow().collectAsStateWithLifecycle(emptyList())
     val subjectMap = subjects.associateBy { it.id }
     val scope = rememberCoroutineScope()
 
     var selectedDay by remember { mutableStateOf(currentDayOfWeek()) }
     if (!DAY_VALUES.contains(selectedDay)) selectedDay = Calendar.MONDAY
     val dayIndex = DAY_VALUES.indexOf(selectedDay).coerceAtLeast(0)
+    val selectedDateMillis = dateForNextWeekday(selectedDay)
 
     var showAdd by remember { mutableStateOf(false) }
+    var showAddOneOff by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<SessionEntity?>(null) }
+    var editTarget by remember { mutableStateOf<SessionEntity?>(null) }
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAdd = true },
-                containerColor = MaterialTheme.colorScheme.primary
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add class", tint = Color.White)
+                // One-off / makeup class button
+                Surface(
+                    onClick = { showAddOneOff = true },
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            "Makeup class",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                FloatingActionButton(
+                    onClick = { showAdd = true },
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add class", tint = Color.White)
+                }
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -236,7 +288,17 @@ fun TimetableTab() {
             }
             item { Spacer(Modifier.height(12.dp)) }
 
-            val daySessions = sessions.filter { it.dayOfWeek == selectedDay }.sortedBy { it.startMinutes }
+            // Show recurring sessions and upcoming one-off classes on the
+            // selected weekday; each makeup class card also shows its date.
+            val daySessions = sessions.filter { session ->
+                val oneOffDate = session.oneOffDateMillis
+                if (oneOffDate != null) {
+                    oneOffDate >= selectedDateMillis &&
+                        Calendar.getInstance().apply { timeInMillis = oneOffDate }.get(Calendar.DAY_OF_WEEK) == selectedDay
+                } else {
+                    session.dayOfWeek == selectedDay
+                }
+            }.sortedBy { it.startMinutes }
             if (daySessions.isEmpty()) {
                 item {
                     Box(
@@ -366,6 +428,20 @@ fun TimetableTab() {
                                                 }
                                             }
                                         }
+                                        if (s.oneOffDateMillis != null) {
+                                            Surface(
+                                                color = Color(0xFF7C3AED).copy(alpha = 0.15f),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    "MAKEUP • ${SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(s.oneOffDateMillis))}",
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF7C3AED),
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
                                     }
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -396,6 +472,9 @@ fun TimetableTab() {
                                             color = subColor.copy(alpha = 0.8f)
                                         )
                                     }
+                                }
+                                IconButton(onClick = { editTarget = s }) {
+                                    Icon(Icons.Filled.Edit, contentDescription = "Edit class", tint = MaterialTheme.colorScheme.primary)
                                 }
                                 IconButton(onClick = { deleteTarget = s }) {
                                     Icon(
@@ -438,6 +517,10 @@ fun TimetableTab() {
                             isLab = isLab
                         )
                     )
+                    val allSessions = repo.dao.sessionsOnce()
+                    val allAtt = repo.dao.attendanceOnce()
+                    val allOv = repo.dao.attendanceOverridesOnce()
+                    LectureAlarmScheduler.reschedule(context, allSessions, subjects, allAtt, allOv)
                 }
                 showAdd = false
             }
@@ -462,12 +545,143 @@ fun TimetableTab() {
         }
     }
 
+    // ── Add one-off / makeup class ──────────────────────────────────────────
+    if (showAddOneOff) {
+        var subjectId by remember { mutableStateOf<Long?>(subjects.firstOrNull()?.id) }
+        var start by remember { mutableStateOf("09:00") }
+        var end by remember { mutableStateOf("10:00") }
+        var room by remember { mutableStateOf("") }
+        var isLab by remember { mutableStateOf(false) }
+        // Date as "dd/MM/yyyy"
+        var dateText by remember {
+            mutableStateOf(SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()))
+        }
+        val startMin = parseMinutes(start)
+        val endMin   = parseMinutes(end)
+        val parsedDate = runCatching {
+            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).let { sdf ->
+                sdf.isLenient = false
+                val cal = Calendar.getInstance()
+                cal.time = sdf.parse(dateText)!!
+                cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+                cal.timeInMillis
+            }
+        }.getOrNull()
+        DialogForm(
+            title = "Add one-off / makeup class",
+            onDismiss = { showAddOneOff = false },
+            saveEnabled = subjectId != null && startMin != null && endMin != null
+                    && endMin!! > startMin!! && parsedDate != null && parsedDate >= todayStartMillis(),
+            onSave = {
+                scope.launch {
+                    repo.dao.upsertSession(
+                        SessionEntity(
+                            subjectId = subjectId!!,
+                            dayOfWeek = Calendar.MONDAY, // ignored for one-off
+                            startMinutes = startMin!!,
+                            endMinutes = endMin!!,
+                            room = room.trim(),
+                            isLab = isLab,
+                            oneOffDateMillis = parsedDate
+                        )
+                    )
+                    val allSessions = repo.dao.sessionsOnce()
+                    val allAtt = repo.dao.attendanceOnce()
+                    val allOv = repo.dao.attendanceOverridesOnce()
+                    LectureAlarmScheduler.reschedule(context, allSessions, subjects, allAtt, allOv)
+                }
+                showAddOneOff = false
+            }
+        ) {
+            Text("Subject", style = MaterialTheme.typography.labelMedium)
+            SubjectPicker(subjects, subjectId) { subjectId = it }
+            FormField("Date (dd/MM/yyyy)", dateText) { dateText = it }
+            FormField("Start time (HH:MM)", start) { start = it }
+            FormField("End time (HH:MM)", end) { end = it }
+            FormField("Room (optional)", room) { room = it }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = isLab, onCheckedChange = { isLab = it })
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text("Lab session", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Lab attendance is tracked separately",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+
+    editTarget?.let { original ->
+        var subjectId by remember(original.id) { mutableStateOf<Long?>(original.subjectId) }
+        var day by remember(original.id) { mutableStateOf(original.dayOfWeek) }
+        var start by remember(original.id) { mutableStateOf(minutesLabel(original.startMinutes)) }
+        var end by remember(original.id) { mutableStateOf(minutesLabel(original.endMinutes)) }
+        var room by remember(original.id) { mutableStateOf(original.room) }
+        var isLab by remember(original.id) { mutableStateOf(original.isLab) }
+        var dateText by remember(original.id) {
+            mutableStateOf(original.oneOffDateMillis?.let { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it)) } ?: "")
+        }
+        val startMin = parseMinutes(start)
+        val endMin = parseMinutes(end)
+        val dateMillis = if (original.oneOffDateMillis == null) null else runCatching {
+            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply { isLenient = false }
+                .parse(dateText)?.let { Calendar.getInstance().apply { time = it; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis }
+        }.getOrNull()
+        DialogForm(
+            title = "Edit class",
+            onDismiss = { editTarget = null },
+            saveEnabled = subjectId != null && startMin != null && endMin != null && endMin!! > startMin!! &&
+                (original.oneOffDateMillis == null || (dateMillis != null && dateMillis >= todayStartMillis())),
+            onSave = {
+                scope.launch {
+                    repo.dao.upsertSession(original.copy(
+                        subjectId = subjectId!!,
+                        dayOfWeek = day,
+                        startMinutes = startMin!!,
+                        endMinutes = endMin!!,
+                        room = room.trim(),
+                        isLab = isLab,
+                        oneOffDateMillis = dateMillis
+                    ))
+                    LectureAlarmScheduler.reschedule(context, repo.dao.sessionsOnce(), repo.dao.subjectsOnce(), repo.dao.attendanceOnce(), repo.dao.attendanceOverridesOnce())
+                }
+                editTarget = null
+            }
+        ) {
+            Text("Subject", style = MaterialTheme.typography.labelMedium)
+            SubjectPicker(subjects, subjectId) { subjectId = it }
+            if (original.oneOffDateMillis == null) {
+                Text("Weekday", style = MaterialTheme.typography.labelMedium)
+                ChipRow(DAY_LABELS, DAY_LABELS[DAY_VALUES.indexOf(day).coerceAtLeast(0)]) { day = DAY_VALUES[DAY_LABELS.indexOf(it)] }
+            } else FormField("Date (dd/MM/yyyy)", dateText) { dateText = it }
+            FormField("Start time (HH:MM)", start) { start = it }
+            FormField("End time (HH:MM)", end) { end = it }
+            FormField("Room", room) { room = it }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = isLab, onCheckedChange = { isLab = it })
+                Text("Lab session (tracked separately)")
+            }
+        }
+    }
+
     deleteTarget?.let { target ->
         ConfirmDeleteDialog(
             what = "this class",
             onDismiss = { deleteTarget = null },
             onConfirm = {
-                scope.launch { repo.dao.deleteSession(target) }
+                scope.launch {
+                    LectureAlarmScheduler.cancelSessions(context, listOf(target))
+                    repo.dao.deleteClassNotesForSession(target.id)
+                    repo.dao.deleteSession(target)
+                    val allSessions = repo.dao.sessionsOnce()
+                    val allAtt = repo.dao.attendanceOnce()
+                    val allOv = repo.dao.attendanceOverridesOnce()
+                    LectureAlarmScheduler.reschedule(context, allSessions, subjects, allAtt, allOv)
+                }
                 deleteTarget = null
             }
         )
@@ -483,10 +697,24 @@ fun AttendanceTab() {
     val subjects by repo.dao.subjectsFlow().collectAsStateWithLifecycle(emptyList())
     val attendance by repo.dao.attendanceFlow().collectAsStateWithLifecycle(emptyList())
     val sessions by repo.dao.sessionsFlow().collectAsStateWithLifecycle(emptyList())
+    val overrides by repo.dao.attendanceOverridesFlow().collectAsStateWithLifecycle(emptyList())
+    val classNotes by repo.dao.classNotesFlow().collectAsStateWithLifecycle(emptyList())
     val scope = rememberCoroutineScope()
+
+    suspend fun refreshLectureReminders() {
+        LectureAlarmScheduler.reschedule(
+            context,
+            repo.dao.sessionsOnce(),
+            repo.dao.subjectsOnce(),
+            repo.dao.attendanceOnce(),
+            repo.dao.attendanceOverridesOnce()
+        )
+    }
 
     var showAdd by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<SubjectEntity?>(null) }
+    var editSubjectTarget by remember { mutableStateOf<SubjectEntity?>(null) }
+    var noteTarget by remember { mutableStateOf<SessionEntity?>(null) }
     val today = todayStartMillis()
     val todayDow = currentDayOfWeek()
 
@@ -564,6 +792,35 @@ fun AttendanceTab() {
                 }
             }
         } else {
+            // ── Mid-semester info banner ──────────────────────────────────
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("📊", fontSize = 20.sp)
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Started mid-semester?",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                "Tap ✏️ on a subject card to enter your current attendance percentage",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
             items(subjects.size) { i ->
                 val sub = subjects[i]
                 val allRecords = attendance.filter { it.subjectId == sub.id }
@@ -572,16 +829,23 @@ fun AttendanceTab() {
                 val theoryRecords = allRecords.filter { !it.isLab }
                 val labRecords = allRecords.filter { it.isLab }
 
-                val theoryStats = attendanceStats(theoryRecords, sub.minAttendance)
+                val theoryOverride = overrides.firstOrNull { it.subjectId == sub.id && !it.isLab }
+                val labOverride = overrides.firstOrNull { it.subjectId == sub.id && it.isLab }
+                val theoryStats = attendanceStats(theoryRecords, sub.minAttendance, theoryOverride)
                 val hasLab = sessions.any { it.subjectId == sub.id && it.isLab }
-                val labStats = if (hasLab) attendanceStats(labRecords, sub.minAttendance) else null
+                val labStats = if (hasLab) attendanceStats(labRecords, sub.minAttendance, labOverride) else null
 
                 // Today's sessions for this subject
-                val todaySessions = sessions.filter { it.subjectId == sub.id && it.dayOfWeek == todayDow }
+                val todaySessions = sessions.filter {
+                    it.subjectId == sub.id &&
+                        if (it.oneOffDateMillis != null) it.oneOffDateMillis == today
+                        else it.dayOfWeek == todayDow
+                }
                     .sortedBy { it.startMinutes }
 
                 val subColor = Color(sub.colorArgb.toInt())
                 val pctColor = when {
+                    theoryStats.total == 0 && theoryOverride == null -> MaterialTheme.colorScheme.onSurfaceVariant
                     theoryStats.pct >= sub.minAttendance -> Color(0xFF22C55E)
                     theoryStats.pct >= sub.minAttendance - 5f -> Color(0xFFFFA726)
                     else -> Color(0xFFEF4444)
@@ -675,11 +939,15 @@ fun AttendanceTab() {
                                                     fontSize = 9.sp
                                                 )
                                             }
+                                            if (theoryOverride?.startingPercent != null && theoryOverride.totalBefore == 0) {
+                                                Text("Reported", style = MaterialTheme.typography.labelSmall, color = pctColor.copy(alpha = 0.8f), fontSize = 9.sp)
+                                            }
                                         }
                                     }
                                     // Lab percentage badge if applicable
                                     if (hasLab && labStats != null) {
                                         val labPctColor = when {
+                    labStats.total == 0 && labOverride == null -> MaterialTheme.colorScheme.onSurfaceVariant
                                             labStats.pct >= sub.minAttendance -> Color(0xFF22C55E)
                                             labStats.pct >= sub.minAttendance - 5f -> Color(0xFFFFA726)
                                             else -> Color(0xFFEF4444)
@@ -695,7 +963,7 @@ fun AttendanceTab() {
                                                 Text(
                                                     "%.1f%%".format(labStats.pct),
                                                     style = MaterialTheme.typography.titleSmall,
-                                                    color = Color(0xFF6D4C41),
+                                                    color = labPctColor,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                                 Text(
@@ -704,6 +972,97 @@ fun AttendanceTab() {
                                                     color = Color(0xFF6D4C41).copy(alpha = 0.7f),
                                                     fontSize = 9.sp
                                                 )
+                                            }
+                                        }
+                                    }
+                                    // Edit override button
+                                    var showOverrideDialog by remember { mutableStateOf(false) }
+                                    IconButton(
+                                        onClick = { editSubjectTarget = sub },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Edit, contentDescription = "Edit subject details", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    IconButton(
+                                        onClick = { showOverrideDialog = true },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Percent,
+                                            contentDescription = "Set starting attendance",
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    if (showOverrideDialog) {
+                                        val existingTheory = overrides.firstOrNull { it.subjectId == sub.id && !it.isLab }
+                                        val existingLab    = overrides.firstOrNull { it.subjectId == sub.id && it.isLab }
+                                        var theoryPct by remember {
+                                            mutableStateOf(existingTheory?.let {
+                                                (it.startingPercent ?: if (it.totalBefore == 0) 0f else it.attendedBefore * 100f / it.totalBefore).toInt().toString()
+                                            } ?: "")
+                                        }
+                                        var labPct by remember {
+                                            mutableStateOf(existingLab?.let {
+                                                (it.startingPercent ?: if (it.totalBefore == 0) 0f else it.attendedBefore * 100f / it.totalBefore).toInt().toString()
+                                            } ?: "")
+                                        }
+                                        var theoryTotal by remember { mutableStateOf(existingTheory?.totalBefore?.takeIf { it > 0 }?.toString() ?: "") }
+                                        var labTotal by remember { mutableStateOf(existingLab?.totalBefore?.takeIf { it > 0 }?.toString() ?: "") }
+                                        val theoryValue = theoryPct.toIntOrNull()?.takeIf { it in 0..100 }
+                                        val labValue = labPct.toIntOrNull()?.takeIf { it in 0..100 }
+                                        val theoryCount = theoryTotal.toIntOrNull()?.takeIf { it > 0 }
+                                        val labCount = labTotal.toIntOrNull()?.takeIf { it > 0 }
+                                        DialogForm(
+                                            title = "Starting attendance — ${sub.name}",
+                                            onDismiss = { showOverrideDialog = false },
+                                            saveEnabled = (theoryPct.isBlank() || (theoryValue != null && (theoryTotal.isBlank() || theoryCount != null))) &&
+                                                (!hasLab || labPct.isBlank() || (labValue != null && (labTotal.isBlank() || labCount != null))),
+                                            onSave = {
+                                                scope.launch {
+                                                    if (theoryValue == null) {
+                                                        repo.dao.clearAttendanceOverride(sub.id, false)
+                                                    } else {
+                                                        repo.dao.upsertAttendanceOverride(
+                                                            AttendanceOverrideEntity(
+                                                                subjectId = sub.id, isLab = false,
+                                                                attendedBefore = theoryCount?.let { kotlin.math.round(theoryValue * it / 100f).toInt() } ?: 0,
+                                                                totalBefore = theoryCount ?: 0,
+                                                                startingPercent = if (theoryCount == null) theoryValue.toFloat() else null
+                                                            )
+                                                        )
+                                                    }
+                                                    if (hasLab) {
+                                                        if (labValue == null) {
+                                                            repo.dao.clearAttendanceOverride(sub.id, true)
+                                                        } else {
+                                                            repo.dao.upsertAttendanceOverride(
+                                                                AttendanceOverrideEntity(
+                                                                    subjectId = sub.id, isLab = true,
+                                                                    attendedBefore = labCount?.let { kotlin.math.round(labValue * it / 100f).toInt() } ?: 0,
+                                                                    totalBefore = labCount ?: 0,
+                                                                    startingPercent = if (labCount == null) labValue.toFloat() else null
+                                                                )
+                                                            )
+                                                        }
+                                                    }
+                                                    refreshLectureReminders()
+                                                }
+                                                showOverrideDialog = false
+                                            }
+                                        ) {
+                                            Text(
+                                                "Enter the teacher-reported percentage. If you know how many classes had happened, add that count for accurate skip forecasts. If unknown, GYAN won't guess how many you can miss.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text("Theory attendance", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                            FormField("Attendance before using GYAN (%)", theoryPct, keyboardType = KeyboardType.Number) { theoryPct = it.filter(Char::isDigit).take(3) }
+                                            FormField("Classes held so far (optional)", theoryTotal, keyboardType = KeyboardType.Number) { theoryTotal = it.filter(Char::isDigit).take(5) }
+                                            if (hasLab) {
+                                                Text("Lab attendance", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                                FormField("Lab attendance before using GYAN (%)", labPct, keyboardType = KeyboardType.Number) { labPct = it.filter(Char::isDigit).take(3) }
+                                                FormField("Lab sessions held so far (optional)", labTotal, keyboardType = KeyboardType.Number) { labTotal = it.filter(Char::isDigit).take(5) }
                                             }
                                         }
                                     }
@@ -743,14 +1102,19 @@ fun AttendanceTab() {
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        "${theoryStats.attended}/${theoryStats.total} attended  •  min ${sub.minAttendance.toInt()}%",
+                                        if (theoryOverride != null) {
+                                        "${theoryRecords.size} tracked · ${"%.1f".format(theoryStats.pct)}% reported · min ${sub.minAttendance.toInt()}%"
+                                        } else {
+                                            "${theoryStats.attended}/${theoryStats.total} attended  •  min ${sub.minAttendance.toInt()}%"
+                                        },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         when {
+                                            !theoryStats.forecastAvailable && theoryOverride != null -> "Add class count for forecast"
                                             theoryStats.canMiss > 0 -> "😌 Miss ${theoryStats.canMiss}"
-                                            theoryStats.mustAttend > 0 -> "⚠️ Need ${theoryStats.mustAttend}"
+                                            theoryStats.mustAttend > 0 -> "⚠️ Attend ${theoryStats.mustAttend} in a row"
                                             theoryStats.total == 0 -> "No data"
                                             else -> "On edge"
                                         },
@@ -766,6 +1130,7 @@ fun AttendanceTab() {
                             // Lab progress bar (if applicable)
                             if (hasLab && labStats != null) {
                                 val labPctColor = when {
+                                    labStats.total == 0 -> MaterialTheme.colorScheme.onSurfaceVariant
                                     labStats.pct >= sub.minAttendance -> Color(0xFF22C55E)
                                     labStats.pct >= sub.minAttendance - 5f -> Color(0xFFFFA726)
                                     else -> Color(0xFFEF4444)
@@ -800,14 +1165,19 @@ fun AttendanceTab() {
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
-                                            "${labStats.attended}/${labStats.total} attended",
+                                            if (labOverride != null) {
+                                                "${labRecords.size} lab sessions tracked  •  ${"%.1f".format(labStats.pct)}%"
+                                            } else {
+                                                "${labStats.attended}/${labStats.total} attended"
+                                            },
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         Text(
-                                            when {
-                                                labStats.canMiss > 0 -> "😌 Miss ${labStats.canMiss}"
-                                                labStats.mustAttend > 0 -> "⚠️ Need ${labStats.mustAttend}"
+                                        when {
+                                            !labStats.forecastAvailable && labOverride != null -> "Add class count for forecast"
+                                            labStats.canMiss > 0 -> "😌 Miss ${labStats.canMiss}"
+                                            labStats.mustAttend > 0 -> "⚠️ Attend ${labStats.mustAttend} in a row"
                                                 labStats.total == 0 -> "No data"
                                                 else -> "On edge"
                                             },
@@ -842,7 +1212,7 @@ fun AttendanceTab() {
                                     }
                                     val sessionColor = if (session.isLab) Color(0xFF6D4C41) else subColor
 
-                                    Surface(
+                                            Surface(
                                         modifier = Modifier.fillMaxWidth(),
                                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                         shape = RoundedCornerShape(12.dp)
@@ -901,6 +1271,7 @@ fun AttendanceTab() {
                                                                     isLab = session.isLab
                                                                 )
                                                             )
+                                                            refreshLectureReminders()
                                                         }
                                                     },
                                                     color = if (presentSelected) Color(0xFF22C55E) else Color(0xFF22C55E).copy(alpha = 0.1f),
@@ -930,6 +1301,7 @@ fun AttendanceTab() {
                                                                     isLab = session.isLab
                                                                 )
                                                             )
+                                                            refreshLectureReminders()
                                                         }
                                                     },
                                                     color = if (absentSelected) Color(0xFFEF4444) else Color(0xFFEF4444).copy(alpha = 0.1f),
@@ -955,6 +1327,7 @@ fun AttendanceTab() {
                                                         .clickable {
                                                             scope.launch {
                                                                 repo.dao.clearAttendance(sub.id, today, session.id)
+                                                                refreshLectureReminders()
                                                             }
                                                         }
                                                         .padding(horizontal = 6.dp, vertical = 4.dp),
@@ -962,8 +1335,18 @@ fun AttendanceTab() {
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
+                                            Text(
+                                                if (classNotes.any { it.subjectId == sub.id && it.sessionId == session.id && it.dayMillis == today }) "Note" else "+ Topic",
+                                                modifier = Modifier.clickable { noteTarget = session },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
                                         }
                                     }
+                                    classNotes.firstOrNull { it.subjectId == sub.id && it.sessionId == session.id && it.dayMillis == today }
+                                        ?.let { note ->
+                                            Text("📖 ${note.topic}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
                                 }
                             } else {
                                 // Manual mark when no sessions are scheduled today
@@ -991,6 +1374,7 @@ fun AttendanceTab() {
                                                 repo.dao.markAttendance(
                                                     AttendanceEntity(sub.id, today, "PRESENT", 0L, false)
                                                 )
+                                                refreshLectureReminders()
                                             }
                                         },
                                         color = if (presentSelected) Color(0xFF22C55E) else Color(0xFF22C55E).copy(alpha = 0.1f),
@@ -1011,6 +1395,7 @@ fun AttendanceTab() {
                                                 repo.dao.markAttendance(
                                                     AttendanceEntity(sub.id, today, "ABSENT", 0L, false)
                                                 )
+                                                refreshLectureReminders()
                                             }
                                         },
                                         color = if (absentSelected) Color(0xFFEF4444) else Color(0xFFEF4444).copy(alpha = 0.1f),
@@ -1032,6 +1417,7 @@ fun AttendanceTab() {
                                                 .clickable {
                                                     scope.launch {
                                                         repo.dao.clearAttendance(sub.id, today, 0L)
+                                                        refreshLectureReminders()
                                                     }
                                                 }
                                                 .padding(horizontal = 6.dp, vertical = 4.dp),
@@ -1052,6 +1438,7 @@ fun AttendanceTab() {
     if (showAdd) {
         var name by remember { mutableStateOf("") }
         var code by remember { mutableStateOf("") }
+        var semester by remember { mutableStateOf("") }
         var minPct by remember { mutableStateOf("75") }
         var units by remember { mutableStateOf("5") }
         DialogForm(
@@ -1064,8 +1451,9 @@ fun AttendanceTab() {
                         SubjectEntity(
                             name = name.trim(),
                             code = code.trim(),
+                            semester = semester.trim(),
                             colorArgb = SUBJECT_COLORS[subjects.size % SUBJECT_COLORS.size],
-                            minAttendance = minPct.toFloatOrNull() ?: 75f,
+                            minAttendance = minPct.toFloatOrNull()?.coerceIn(0f, 100f) ?: 75f,
                             totalUnits = units.toIntOrNull()?.coerceAtLeast(1) ?: 5
                         )
                     )
@@ -1075,10 +1463,62 @@ fun AttendanceTab() {
         ) {
             FormField("Subject name", name) { name = it }
             FormField("Code (optional)", code) { code = it }
+            FormField("Semester / term (optional)", semester) { semester = it }
             FormField("Minimum attendance %", minPct) { minPct = it.filter { c -> c.isDigit() } }
             FormField("Total units / chapters", units, keyboardType = KeyboardType.Number) {
                 units = it.filter { c -> c.isDigit() }
             }
+        }
+    }
+
+    editSubjectTarget?.let { original ->
+        var name by remember(original.id) { mutableStateOf(original.name) }
+        var code by remember(original.id) { mutableStateOf(original.code) }
+        var semester by remember(original.id) { mutableStateOf(original.semester) }
+        var minPct by remember(original.id) { mutableStateOf(original.minAttendance.toInt().toString()) }
+        var units by remember(original.id) { mutableStateOf(original.totalUnits.toString()) }
+        var color by remember(original.id) { mutableStateOf(original.colorArgb) }
+        DialogForm(
+            title = "Edit subject",
+            onDismiss = { editSubjectTarget = null },
+            saveEnabled = name.isNotBlank() && (minPct.toFloatOrNull()?.let { it in 0f..100f } == true) && (units.toIntOrNull()?.let { it > 0 } == true),
+            onSave = {
+                scope.launch {
+                    repo.dao.upsertSubject(original.copy(name = name.trim(), code = code.trim(), semester = semester.trim(), minAttendance = minPct.toFloat(), totalUnits = units.toInt(), colorArgb = color))
+                    LectureAlarmScheduler.reschedule(context, repo.dao.sessionsOnce(), repo.dao.subjectsOnce(), repo.dao.attendanceOnce(), repo.dao.attendanceOverridesOnce())
+                }
+                editSubjectTarget = null
+            }
+        ) {
+            FormField("Subject name", name) { name = it }
+            FormField("Code", code) { code = it }
+            FormField("Semester / term", semester) { semester = it }
+            FormField("Minimum attendance %", minPct, keyboardType = KeyboardType.Number) { minPct = it.filter { c -> c.isDigit() || c == '.' }.take(5) }
+            FormField("Total units / chapters", units, keyboardType = KeyboardType.Number) { units = it.filter(Char::isDigit).take(3) }
+            Text("Subject color", style = MaterialTheme.typography.labelMedium)
+            ChipRow(SUBJECT_COLORS.indices.map { "Color ${it + 1}" }, "Color ${(SUBJECT_COLORS.indexOf(color).takeIf { it >= 0 } ?: 0) + 1}") {
+                color = SUBJECT_COLORS[it.removePrefix("Color ").toInt() - 1]
+            }
+        }
+    }
+
+    noteTarget?.let { session ->
+        val oldNote = classNotes.firstOrNull { it.subjectId == session.subjectId && it.sessionId == session.id && it.dayMillis == today }
+        var topic by remember(session.id, oldNote?.updatedAt) { mutableStateOf(oldNote?.topic.orEmpty()) }
+        DialogForm(
+            title = "Class topic · ${subjects.firstOrNull { it.id == session.subjectId }?.name.orEmpty()}",
+            onDismiss = { noteTarget = null },
+            onSave = {
+                scope.launch {
+                    if (topic.isBlank()) repo.dao.deleteClassNote(session.subjectId, session.id, today)
+                    else repo.dao.upsertClassNote(ClassNoteEntity(session.subjectId, session.id, today, topic.trim()))
+                }
+                noteTarget = null
+            },
+            saveEnabled = true
+        ) {
+            Text("Write what was covered in this meeting. Leave it blank to clear the note.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            FormField("Today's topic", topic, singleLine = false) { topic = it }
         }
     }
 
@@ -1087,7 +1527,12 @@ fun AttendanceTab() {
             what = target.name,
             onDismiss = { deleteTarget = null },
             onConfirm = {
-                scope.launch { repo.dao.deleteSubject(target) }
+                scope.launch {
+                    LectureAlarmScheduler.cancelSessions(context, sessions.filter { it.subjectId == target.id })
+                    repo.dao.deleteClassNotesForSubject(target.id)
+                    repo.dao.deleteSubject(target)
+                    refreshLectureReminders()
+                }
                 deleteTarget = null
             }
         )
@@ -1105,14 +1550,23 @@ fun TasksTab(type: String, includeTasks: Boolean) {
     val subjectMap = subjects.associateBy { it.id }
     val scope = rememberCoroutineScope()
 
-    val shown = tasks.filter {
+    val typedTasks = tasks.filter {
         when (type) {
             "EXAM" -> it.type == "EXAM"
             else -> it.type == "TASK" || it.type == "ASSIGNMENT"
         }
     }
+    var taskFilter by remember(type) { mutableStateOf("Pending") }
+    val shown = typedTasks.filter {
+        when (taskFilter) {
+            "Done" -> it.status == "DONE"
+            "All" -> true
+            else -> it.status != "DONE"
+        }
+    }.sortedWith(compareBy<TaskEntity> { it.status == "DONE" }.thenBy { it.dueMillis ?: Long.MAX_VALUE })
     var showAdd by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<TaskEntity?>(null) }
+    var editTaskTarget by remember { mutableStateOf<TaskEntity?>(null) }
 
     Scaffold(
         floatingActionButton = {
@@ -1129,6 +1583,19 @@ fun TasksTab(type: String, includeTasks: Boolean) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(8.dp)) }
+            item {
+                Text(if (type == "EXAM") "Exams" else "Tasks & assignments",
+                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(10.dp))
+                ChipRow(
+                    listOf("Pending ${typedTasks.count { it.status != "DONE" }}", "Done ${typedTasks.count { it.status == "DONE" }}", "All ${typedTasks.size}"),
+                    when (taskFilter) {
+                        "Pending" -> "Pending ${typedTasks.count { it.status != "DONE" }}"
+                        "Done" -> "Done ${typedTasks.count { it.status == "DONE" }}"
+                        else -> "All ${typedTasks.size}"
+                    }
+                ) { selected -> taskFilter = selected.substringBefore(' ') }
+            }
             if (shown.isEmpty()) {
                 item { EmptyState(if (type == "EXAM") "No exams added" else "No tasks or assignments") }
             } else {
@@ -1182,6 +1649,9 @@ fun TasksTab(type: String, includeTasks: Boolean) {
                                     else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            IconButton(onClick = { editTaskTarget = t }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit task", tint = MaterialTheme.colorScheme.primary)
+                            }
                             IconButton(onClick = { deleteTarget = t }) {
                                 Icon(
                                     Icons.Filled.Delete,
@@ -1198,16 +1668,18 @@ fun TasksTab(type: String, includeTasks: Boolean) {
         }
     }
 
-    if (showAdd) {
-        var title by remember { mutableStateOf("") }
-        var subjectId by remember { mutableStateOf<Long?>(null) }
-        var dueText by remember { mutableStateOf("") }
-        var kind by remember { mutableStateOf(if (type == "EXAM") "EXAM" else "ASSIGNMENT") }
-        var remind by remember { mutableStateOf("1 hour before") }
+    if (showAdd || editTaskTarget != null) {
+        val original = editTaskTarget
+        var title by remember(original?.id) { mutableStateOf(original?.title.orEmpty()) }
+        var subjectId by remember(original?.id) { mutableStateOf(original?.subjectId) }
+        var dueText by remember(original?.id) { mutableStateOf(original?.dueMillis?.let { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(it)) }.orEmpty()) }
+        var notes by remember(original?.id) { mutableStateOf(original?.notes.orEmpty()) }
+        var kind by remember(original?.id) { mutableStateOf(original?.type ?: if (type == "EXAM") "EXAM" else "ASSIGNMENT") }
+        var remind by remember(original?.id) { mutableStateOf(when (original?.reminderMinutesBefore) { 0L -> "At due time"; 1440L -> "1 day before"; else -> "1 hour before" }) }
         val due = parseDateTime(dueText)
         DialogForm(
-            title = if (type == "EXAM") "Add exam" else "Add task / assignment",
-            onDismiss = { showAdd = false },
+            title = if (original != null) "Edit ${if (type == "EXAM") "exam" else "task"}" else if (type == "EXAM") "Add exam" else "Add task / assignment",
+            onDismiss = { showAdd = false; editTaskTarget = null },
             saveEnabled = title.isNotBlank(),
             onSave = {
                 val remindMin = when (remind) {
@@ -1216,21 +1688,20 @@ fun TasksTab(type: String, includeTasks: Boolean) {
                     else -> 60L
                 }
                 scope.launch {
-                    val id = repo.dao.upsertTask(
-                        TaskEntity(
-                            title = title.trim(), subjectId = subjectId,
-                            type = if (type == "EXAM") "EXAM" else kind,
-                            dueMillis = due, reminderMinutesBefore = remindMin
-                        )
-                    )
-                    if (due != null) {
+                    original?.let { ReminderScheduler.cancel(context, requestCodeFor(it.id)) }
+                    val task = original?.copy(title = title.trim(), subjectId = subjectId, type = if (type == "EXAM") "EXAM" else kind, dueMillis = due, notes = notes.trim(), reminderMinutesBefore = remindMin)
+                        ?: TaskEntity(title = title.trim(), subjectId = subjectId, type = if (type == "EXAM") "EXAM" else kind, dueMillis = due, notes = notes.trim(), reminderMinutesBefore = remindMin)
+                    val saved = repo.dao.upsertTask(task)
+                    val id = if (original != null) original.id else saved
+                    if (due != null && task.status != "DONE") {
                         ReminderScheduler.schedule(
-                            context, requestCodeFor(id), title.trim(),
-                            "Due ${formatDateTime(due)}", due - remindMin * 60_000
+                            context, requestCodeFor(id), "📚 Keep moving: ${title.trim()}",
+                            "You still have this task to finish · Due ${formatDateTime(due)}", due - remindMin * 60_000
                         )
                     }
                 }
                 showAdd = false
+                editTaskTarget = null
             }
         ) {
             if (type != "EXAM") {
@@ -1241,6 +1712,7 @@ fun TasksTab(type: String, includeTasks: Boolean) {
             Text("Subject", style = MaterialTheme.typography.labelMedium)
             SubjectPicker(subjects, subjectId) { subjectId = it }
             FormField("Due date & time (dd/MM/yyyy HH:mm)", dueText) { dueText = it }
+            FormField("Notes", notes, singleLine = false) { notes = it }
             Text("Remind me", style = MaterialTheme.typography.labelMedium)
             ChipRow(listOf("At due time", "1 hour before", "1 day before"), remind) { remind = it }
         }

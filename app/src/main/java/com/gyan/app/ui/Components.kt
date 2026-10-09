@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gyan.app.data.AttendanceEntity
+import com.gyan.app.data.AttendanceOverrideEntity
 import com.gyan.app.data.SubjectEntity
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -103,19 +104,33 @@ data class AttStats(
     val total: Int,
     val pct: Float,
     val canMiss: Int,
-    val mustAttend: Int
+    val mustAttend: Int,
+    val forecastAvailable: Boolean = true
 )
 
-fun attendanceStats(records: List<AttendanceEntity>, minPct: Float): AttStats {
-    val attended = records.count { it.status == "PRESENT" }
-    val total = records.size
-    val pct = if (total == 0) 100f else attended * 100f / total
-    val m = minPct / 100f
-    val canMiss = if (pct >= minPct && m > 0f)
+fun attendanceStats(
+    records: List<AttendanceEntity>,
+    minPct: Float,
+    starting: AttendanceOverrideEntity? = null
+): AttStats {
+    val loggedAttended = records.count { it.status == "PRESENT" }
+    val loggedTotal = records.count { it.status == "PRESENT" || it.status == "ABSENT" }
+    val hasUnweightedBaseline = starting?.startingPercent != null && starting.totalBefore == 0
+    val attended = loggedAttended + (starting?.attendedBefore ?: 0)
+    val total = loggedTotal + (starting?.totalBefore ?: 0)
+    val pct = when {
+        hasUnweightedBaseline -> starting!!.startingPercent!!.coerceIn(0f, 100f)
+        total == 0 -> 0f
+        else -> attended * 100f / total
+    }
+    val forecastAvailable = !hasUnweightedBaseline && total > 0
+    val minimum = minPct.coerceIn(0f, 100f)
+    val m = minimum / 100f
+    val canMiss = if (forecastAvailable && pct >= minimum && m > 0f && m < 1f)
         floor(attended / m - total).toInt().coerceAtLeast(0) else 0
-    val mustAttend = if (pct < minPct && m < 1f)
+    val mustAttend = if (forecastAvailable && pct < minimum && m < 1f)
         ceil((m * total - attended) / (1f - m)).toInt().coerceAtLeast(0) else 0
-    return AttStats(attended, total, pct, canMiss, mustAttend)
+    return AttStats(attended, total, pct, canMiss, mustAttend, forecastAvailable)
 }
 
 val SUBJECT_COLORS = listOf(

@@ -23,8 +23,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -48,11 +48,14 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
 
     private lateinit var navController: androidx.navigation.NavController
+    private var themeMode by mutableStateOf("dark")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        themeMode = getSharedPreferences("gyan_preferences", MODE_PRIVATE)
+            .getString("theme_mode", "dark") ?: "dark"
         setContent {
-            GyanTheme {
+            GyanTheme(themeMode) {
                 val nav = rememberNavController()
                 navController = nav
 
@@ -81,20 +84,20 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     bottomBar = {
                         NavigationBar {
-                            navItems.forEach { item ->
-                                NavigationBarItem(
-                                    selected = currentRoute == item.route,
-                                    onClick = {
-                                        nav.navigate(item.route) {
-                                            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                    icon = { Icon(item.icon, contentDescription = item.label) },
-                                    label = { Text(item.label) }
-                                )
-                            }
+                                navItems.forEach { item ->
+                                    NavigationBarItem(
+                                        selected = currentRoute == item.route,
+                                        onClick = {
+                                            nav.navigate(item.route) {
+                                                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        },
+                                        icon = { Icon(item.icon, contentDescription = item.label) },
+                                        label = { Text(item.label) }
+                                    )
+                                }
                         }
                     }
                 ) { innerPadding ->
@@ -108,7 +111,17 @@ class MainActivity : ComponentActivity() {
                         composable("money") { MoneyScreen() }
                         composable("track") { TrackersScreen() }
                         composable("files") { FilesScreen() }
-                        composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
+                        composable("settings") {
+                            SettingsScreen(
+                                onBack = { nav.popBackStack() },
+                                themeMode = themeMode,
+                                onThemeModeChange = { mode ->
+                                    themeMode = mode
+                                    getSharedPreferences("gyan_preferences", MODE_PRIVATE)
+                                        .edit().putString("theme_mode", mode).apply()
+                                }
+                            )
+                        }
                     }
                 }
             }

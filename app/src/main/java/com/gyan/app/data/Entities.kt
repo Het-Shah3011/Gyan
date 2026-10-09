@@ -30,7 +30,12 @@ data class SessionEntity(
     val endMinutes: Int,
     val room: String = "",
     /** True = lab session; lab attendance is counted separately from theory */
-    val isLab: Boolean = false
+    val isLab: Boolean = false,
+    /**
+     * If non-null, this is a ONE-OFF / makeup class on a specific date
+     * (stored as start-of-day millis). dayOfWeek is ignored for one-off sessions.
+     */
+    val oneOffDateMillis: Long? = null
 )
 
 /**
@@ -49,6 +54,32 @@ data class AttendanceEntity(
     val sessionId: Long = 0L,
     /** True = lab session record; counted separately */
     val isLab: Boolean = false
+)
+
+/**
+ * Allows a student joining mid-semester to set their starting attendance.
+ * The override baseline is added on top of the records tracked in this app.
+ * Percentage-only setup stores the percentage as an equivalent attended/100 ratio.
+ */
+@Entity(tableName = "attendance_overrides", primaryKeys = ["subjectId", "isLab"])
+data class AttendanceOverrideEntity(
+    val subjectId: Long,
+    val isLab: Boolean = false,
+    /** Known baseline attended count. */
+    val attendedBefore: Int = 0,
+    /** Known baseline total count. Zero means the total was not supplied. */
+    val totalBefore: Int = 0,
+    /** Teacher-reported percentage when the baseline class count is unknown. */
+    val startingPercent: Float? = null
+)
+
+@Entity(tableName = "class_notes", primaryKeys = ["subjectId", "sessionId", "dayMillis"])
+data class ClassNoteEntity(
+    val subjectId: Long,
+    val sessionId: Long,
+    val dayMillis: Long,
+    val topic: String,
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "tasks")

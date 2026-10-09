@@ -16,16 +16,26 @@ class BootReceiver : BroadcastReceiver() {
             try {
                 val dao = GyanRepository.get(context).dao
                 val now = System.currentTimeMillis()
-                dao.upcomingTasks(now, now + 48L * 3600_000).forEach { task ->
+
+                // ---- Task / exam reminders ----
+                dao.upcomingTasks(now, Long.MAX_VALUE).forEach { task ->
                     val due = task.dueMillis ?: return@forEach
                     ReminderScheduler.schedule(
                         context,
                         requestCodeFor(task.id),
-                        task.title,
-                        "Due ${com.gyan.app.ui.formatDateTime(due)}",
+                    "📚 Keep moving: ${task.title}",
+                    "You still have this task to finish · Due ${com.gyan.app.ui.formatDateTime(due)}",
                         due - task.reminderMinutesBefore * 60_000
                     )
                 }
+
+                // ---- Lecture 10-min alarms ----
+                val sessions   = dao.sessionsOnce()
+                val subjects   = dao.subjectsOnce()
+                val attendance = dao.attendanceOnce()
+                val overrides  = dao.attendanceOverridesOnce()
+                LectureAlarmScheduler.reschedule(context, sessions, subjects, attendance, overrides)
+
             } finally {
                 pending.finish()
             }

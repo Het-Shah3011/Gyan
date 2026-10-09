@@ -15,6 +15,7 @@ interface GyanDao {
     @Delete suspend fun deleteSubject(s: SubjectEntity)
     @Query("SELECT * FROM subjects ORDER BY name") fun subjectsFlow(): Flow<List<SubjectEntity>>
     @Query("SELECT * FROM subjects") suspend fun subjectsOnce(): List<SubjectEntity>
+    @Query("SELECT * FROM subjects WHERE id = :id LIMIT 1") suspend fun subjectById(id: Long): SubjectEntity?
 
     // ---- Timetable sessions ----
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertSession(s: SessionEntity): Long
@@ -28,6 +29,24 @@ interface GyanDao {
     suspend fun clearAttendance(sid: Long, day: Long, sessionId: Long)
     @Query("SELECT * FROM attendance") fun attendanceFlow(): Flow<List<AttendanceEntity>>
     @Query("SELECT * FROM attendance") suspend fun attendanceOnce(): List<AttendanceEntity>
+
+    // ---- Attendance overrides (mid-semester starting values) ----
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertAttendanceOverride(o: AttendanceOverrideEntity)
+    @Query("SELECT * FROM attendance_overrides") fun attendanceOverridesFlow(): Flow<List<AttendanceOverrideEntity>>
+    @Query("SELECT * FROM attendance_overrides") suspend fun attendanceOverridesOnce(): List<AttendanceOverrideEntity>
+    @Query("DELETE FROM attendance_overrides WHERE subjectId = :subjectId AND isLab = :isLab")
+    suspend fun clearAttendanceOverride(subjectId: Long, isLab: Boolean)
+    @Query("DELETE FROM attendance_overrides") suspend fun clearAttendanceOverrides()
+    @Query("DELETE FROM class_notes") suspend fun clearClassNotes()
+
+    // ---- Per-meeting topic notes ----
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertClassNote(note: ClassNoteEntity)
+    @Query("SELECT * FROM class_notes") fun classNotesFlow(): Flow<List<ClassNoteEntity>>
+    @Query("SELECT * FROM class_notes") suspend fun classNotesOnce(): List<ClassNoteEntity>
+    @Query("DELETE FROM class_notes WHERE subjectId = :subjectId AND sessionId = :sessionId AND dayMillis = :dayMillis")
+    suspend fun deleteClassNote(subjectId: Long, sessionId: Long, dayMillis: Long)
+    @Query("DELETE FROM class_notes WHERE subjectId = :subjectId") suspend fun deleteClassNotesForSubject(subjectId: Long)
+    @Query("DELETE FROM class_notes WHERE sessionId = :sessionId") suspend fun deleteClassNotesForSession(sessionId: Long)
 
     // ---- Tasks / assignments / exams ----
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertTask(t: TaskEntity): Long
@@ -44,6 +63,7 @@ interface GyanDao {
     @Query("SELECT * FROM expenses") suspend fun expensesOnce(): List<ExpenseEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertBudget(b: BudgetEntity)
+    @Delete suspend fun deleteBudget(b: BudgetEntity)
     @Query("SELECT * FROM budgets") fun budgetsFlow(): Flow<List<BudgetEntity>>
     @Query("SELECT * FROM budgets") suspend fun budgetsOnce(): List<BudgetEntity>
 
@@ -84,7 +104,13 @@ interface GyanDao {
     @Query("DELETE FROM studyfiles") suspend fun clearFiles()
 
     suspend fun clearAll() {
-        clearSessions(); clearAttendanceAll(); clearTasks(); clearExpenses(); clearBudgets()
-        clearSubscriptions(); clearWarranties(); clearScholarships(); clearFiles(); clearSubjects()
+        clearSessions(); clearAttendanceAll(); clearAttendanceOverrides(); clearTasks()
+        clearClassNotes(); clearExpenses(); clearBudgets(); clearSubscriptions(); clearWarranties()
+        clearScholarships(); clearFiles(); clearSubjects()
+    }
+
+    /** Clear schedule rows only. Subjects and personal attendance remain on this device. */
+    suspend fun clearTimetableOnly() {
+        clearSessions()
     }
 }

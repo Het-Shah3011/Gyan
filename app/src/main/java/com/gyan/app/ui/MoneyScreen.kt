@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -55,6 +56,8 @@ fun MoneyScreen() {
     var showAdd by remember { mutableStateOf(false) }
     var showBudget by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ExpenseEntity?>(null) }
+    var editTarget by remember { mutableStateOf<ExpenseEntity?>(null) }
+    var budgetEditTarget by remember { mutableStateOf<BudgetEntity?>(null) }
 
     Scaffold(
         floatingActionButton = {
@@ -66,17 +69,31 @@ fun MoneyScreen() {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                Card(Modifier.fillMaxWidth()) {
+                Text("Money", style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    modifier = Modifier.padding(top = 8.dp))
+            }
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("This month", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "This month · ${java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault()).format(java.util.Date())}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column {
-                                Text("Spent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
-                                Text(formatMoney(spent), style = MaterialTheme.typography.headlineSmall)
+                                Text("Spent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .8f))
+                                Text(formatMoney(spent), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onPrimary)
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("Received", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                                Text(formatMoney(income), style = MaterialTheme.typography.headlineSmall)
+                                Text("Received", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .8f))
+                                Text(formatMoney(income), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
                         if (totalBudget > 0f) {
@@ -91,7 +108,7 @@ fun MoneyScreen() {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        TextButton(onClick = { showBudget = true }) { Text("Set monthly budget") }
+                            TextButton(onClick = { showBudget = true }) { Text("Set monthly budget", color = MaterialTheme.colorScheme.onPrimary) }
                     }
                 }
             }
@@ -108,7 +125,7 @@ fun MoneyScreen() {
                         catBudgets.forEach { b ->
                             val catSpent = thisMonth.filter { !it.isIncome && it.category == b.category }
                                 .sumOf { it.amount.toDouble() }.toFloat()
-                            Card(Modifier.fillMaxWidth()) {
+                            Card(onClick = { budgetEditTarget = b; showBudget = true }, modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text(b.category, style = MaterialTheme.typography.titleSmall)
@@ -152,6 +169,9 @@ fun MoneyScreen() {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            IconButton(onClick = { editTarget = e }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit entry", tint = MaterialTheme.colorScheme.primary)
+                            }
                             IconButton(onClick = { deleteTarget = e }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                             }
@@ -163,26 +183,25 @@ fun MoneyScreen() {
         }
     }
 
-    if (showAdd) {
-        var amount by remember { mutableStateOf("") }
-        var category by remember { mutableStateOf(DEFAULT_CATEGORIES.first()) }
-        var note by remember { mutableStateOf("") }
-        var isIncome by remember { mutableStateOf(false) }
+    if (showAdd || editTarget != null) {
+        val original = editTarget
+        var amount by remember(original?.id) { mutableStateOf(original?.amount?.toString().orEmpty()) }
+        var category by remember(original?.id) { mutableStateOf(original?.category ?: DEFAULT_CATEGORIES.first()) }
+        var note by remember(original?.id) { mutableStateOf(original?.note.orEmpty()) }
+        var dateText by remember(original?.id) { mutableStateOf(original?.dateMillis?.let { java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(it)) }.orEmpty()) }
+        var isIncome by remember(original?.id) { mutableStateOf(original?.isIncome ?: false) }
         DialogForm(
-            title = "Add money entry",
-            onDismiss = { showAdd = false },
+            title = if (original == null) "Add money entry" else "Edit money entry",
+            onDismiss = { showAdd = false; editTarget = null },
             saveEnabled = amount.toFloatOrNull() != null && amount.toFloatOrNull()!! > 0f,
             onSave = {
                 scope.launch {
-                    repo.dao.upsertExpense(
-                        ExpenseEntity(
-                            amount = amount.toFloatOrNull() ?: 0f,
-                            category = category, note = note.trim(),
-                            dateMillis = System.currentTimeMillis(), isIncome = isIncome
-                        )
-                    )
+                    val day = parseDateTime(dateText) ?: System.currentTimeMillis()
+                    repo.dao.upsertExpense(original?.copy(amount = amount.toFloat(), category = category.trim(), note = note.trim(), dateMillis = day, isIncome = isIncome)
+                        ?: ExpenseEntity(amount = amount.toFloat(), category = category.trim(), note = note.trim(), dateMillis = day, isIncome = isIncome))
                 }
                 showAdd = false
+                editTarget = null
             }
         ) {
             Text("Type", style = MaterialTheme.typography.labelMedium)
@@ -192,26 +211,32 @@ fun MoneyScreen() {
             FormField("Amount", amount) { amount = it.filter { c -> c.isDigit() || c == '.' } }
             Text("Category", style = MaterialTheme.typography.labelMedium)
             ChipRow(DEFAULT_CATEGORIES, category) { category = it }
+            FormField("Category name", category) { category = it }
+            FormField("Date (dd/MM/yyyy)", dateText) { dateText = it }
             FormField("Note (optional)", note) { note = it }
         }
     }
 
     if (showBudget) {
-        var amount by remember { mutableStateOf(totalBudget.takeIf { it > 0f }?.toString() ?: "") }
-        var category by remember { mutableStateOf("TOTAL") }
+        val original = budgetEditTarget
+        var amount by remember(original?.category) { mutableStateOf((original?.monthlyAmount ?: totalBudget).takeIf { it > 0f }?.toString() ?: "") }
+        var category by remember(original?.category) { mutableStateOf(original?.category ?: "TOTAL") }
         DialogForm(
             title = "Set budget",
-            onDismiss = { showBudget = false },
+            onDismiss = { showBudget = false; budgetEditTarget = null },
             saveEnabled = amount.toFloatOrNull() != null && amount.toFloatOrNull()!! > 0f,
             onSave = {
                 scope.launch {
+                    if (original != null && original.category != category) repo.dao.deleteBudget(original)
                     repo.dao.upsertBudget(BudgetEntity(category, amount.toFloatOrNull() ?: 0f))
                 }
                 showBudget = false
+                budgetEditTarget = null
             }
         ) {
             Text("Budget for", style = MaterialTheme.typography.labelMedium)
             ChipRow(listOf("TOTAL") + DEFAULT_CATEGORIES, category) { category = it }
+            FormField("Budget category", category) { category = it }
             FormField("Monthly amount", amount) { amount = it.filter { c -> c.isDigit() || c == '.' } }
         }
     }

@@ -58,14 +58,19 @@ fun TodayScreen(nav: NavController) {
     val subjects by repo.dao.subjectsFlow().collectAsStateWithLifecycle(emptyList())
     val sessions by repo.dao.sessionsFlow().collectAsStateWithLifecycle(emptyList())
     val attendance by repo.dao.attendanceFlow().collectAsStateWithLifecycle(emptyList())
+    val attendanceOverrides by repo.dao.attendanceOverridesFlow().collectAsStateWithLifecycle(emptyList())
     val tasks by repo.dao.tasksFlow().collectAsStateWithLifecycle(emptyList())
     val expenses by repo.dao.expensesFlow().collectAsStateWithLifecycle(emptyList())
     val subscriptions by repo.dao.subscriptionsFlow().collectAsStateWithLifecycle(emptyList())
     val budgets by repo.dao.budgetsFlow().collectAsStateWithLifecycle(emptyList())
 
     val subjectMap = subjects.associateBy { it.id }
-    val todaySessions = sessions.filter { it.dayOfWeek == currentDayOfWeek() }.sortedBy { it.startMinutes }
     val startToday = todayStartMillis()
+    val todayDow = currentDayOfWeek()
+    val todaySessions = sessions.filter {
+        if (it.oneOffDateMillis != null) it.oneOffDateMillis == startToday
+        else it.dayOfWeek == todayDow
+    }.sortedBy { it.startMinutes }
     val upcoming = tasks
         .filter { it.status == "TODO" && it.dueMillis != null && it.dueMillis <= startToday + 7L * 86400000 }
         .sortedBy { it.dueMillis }
@@ -87,21 +92,13 @@ fun TodayScreen(nav: NavController) {
     ) {
         // ---- Hero greeting card ----
         item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
-                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.9f)
-                            )
-                        )
-                    )
-                    .padding(horizontal = 20.dp, vertical = 24.dp)
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(28.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Column {
+                Column(Modifier.padding(18.dp)) {
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -109,57 +106,63 @@ fun TodayScreen(nav: NavController) {
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                greeting() + "! 👋",
+                                SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()).format(Date()),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                greeting() + "!",
                                 style = MaterialTheme.typography.headlineMedium,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                SimpleDateFormat("EEEE, dd MMM yyyy", Locale.getDefault()).format(Date()),
-                                color = Color.White.copy(alpha = 0.8f),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
                         }
-                        IconButton(
-                            onClick = { nav.navigate("settings") },
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.15f))
-                        ) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color.White)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            IconButton(
+                                onClick = { nav.navigate("settings") },
+                                modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) { Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary) }
                         }
                     }
 
                     Spacer(Modifier.height(20.dp))
 
-                    // Stats row
+                    // Quick overview
                     Row(
                         Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         // Classes today
                         HeroStatCard(
                             modifier = Modifier.weight(1f),
                             value = todaySessions.size.toString(),
                             label = "Classes today",
-                            emoji = "📚"
+                            emoji = "◷",
+                            background = MaterialTheme.colorScheme.primary
                         )
                         // Tasks due soon
                         HeroStatCard(
                             modifier = Modifier.weight(1f),
                             value = upcoming.size.toString(),
                             label = "Due soon",
-                            emoji = "⏰"
+                            emoji = "!",
+                            background = MaterialTheme.colorScheme.tertiary
                         )
-                        // Spent today
-                        HeroStatCard(
-                            modifier = Modifier.weight(1f),
-                            value = formatMoney(todaySpent),
-                            label = "Today",
-                            emoji = "💰",
-                            small = true
-                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Spent today", color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                style = MaterialTheme.typography.titleSmall)
+                            Text(formatMoney(todaySpent), color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -434,9 +437,11 @@ fun TodayScreen(nav: NavController) {
                     ) {
                         subjects.forEach { sub ->
                             val theoryRecords = attendance.filter { it.subjectId == sub.id && !it.isLab }
-                            val stats = attendanceStats(theoryRecords, sub.minAttendance)
+                            val starting = attendanceOverrides.firstOrNull { it.subjectId == sub.id && !it.isLab }
+                            val stats = attendanceStats(theoryRecords, sub.minAttendance, starting)
                             val subColor = Color(sub.colorArgb.toInt())
                             val pctColor = when {
+                                stats.total == 0 -> MaterialTheme.colorScheme.onSurfaceVariant
                                 stats.pct >= sub.minAttendance -> Color(0xFF22C55E)
                                 stats.pct >= sub.minAttendance - 5f -> Color(0xFFFFA726)
                                 else -> Color(0xFFEF4444)
@@ -630,16 +635,17 @@ private fun HeroStatCard(
     value: String,
     label: String,
     emoji: String,
-    small: Boolean = false
+    small: Boolean = false,
+    background: Color = MaterialTheme.colorScheme.primary
 ) {
     Surface(
         modifier = modifier,
-        color = Color.White.copy(alpha = 0.15f),
-        shape = RoundedCornerShape(14.dp)
+        color = background,
+        shape = RoundedCornerShape(18.dp)
     ) {
         Column(
-            Modifier.padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(emoji, fontSize = 18.sp)
@@ -651,14 +657,14 @@ private fun HeroStatCard(
                 color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.Start,
                 fontSize = if (small) 14.sp else 22.sp
             )
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.75f),
-                textAlign = TextAlign.Center,
+                color = Color.White.copy(alpha = 0.82f),
+                textAlign = TextAlign.Start,
                 fontSize = 10.sp
             )
         }

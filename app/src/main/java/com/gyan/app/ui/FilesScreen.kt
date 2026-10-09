@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -28,6 +29,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,11 +67,19 @@ fun FilesScreen() {
     val subjects by repo.dao.subjectsFlow().collectAsStateWithLifecycle(emptyList())
     val files by repo.dao.filesFlow().collectAsStateWithLifecycle(emptyList())
     val scope = rememberCoroutineScope()
+    var searchQuery by remember { mutableStateOf("") }
 
     val subjectMap = subjects.associateBy { it.id }
-    val inbox = files.filter { it.category == "INBOX" }
+    val matchingFiles = files.filter { file ->
+        searchQuery.isBlank() || listOf(
+            file.displayName,
+            file.category,
+            subjectMap[file.subjectId]?.name.orEmpty()
+        ).any { it.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+    val inbox = matchingFiles.filter { it.category == "INBOX" }
     // Group organized files: Subject → (Category → List<file>)
-    val organizedBySubject: Map<String, Map<String, List<StudyFileEntity>>> = files
+    val organizedBySubject: Map<String, Map<String, List<StudyFileEntity>>> = matchingFiles
         .filter { it.category != "INBOX" }
         .groupBy { subjectMap[it.subjectId]?.name ?: "Unsorted" }
         .mapValues { (_, subFiles) ->
@@ -117,6 +127,19 @@ fun FilesScreen() {
             Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            item {
+                Text("Files", style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    placeholder = { Text("Search notes and files") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(18.dp)
+                )
+            }
             item {
                 Text(
                     "Share any PDF, doc or image from WhatsApp, Drive or Downloads straight to GYAN — it lands in Inbox, then organize into subjects.",

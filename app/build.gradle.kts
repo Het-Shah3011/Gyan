@@ -2,23 +2,52 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "com.gyan.app"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.gyan.app"
         minSdk = 31          // Android 12 and above
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 36
+        versionCode = 3
+        versionName = "1.2.0"
+    }
+
+    flavorDimensions += "store"
+    productFlavors {
+        create("play") {
+            dimension = "store"
+        }
+        create("samsung") {
+            dimension = "store"
+            applicationIdSuffix = ".samsung"
+        }
+    }
+
+    signingConfigs {
+        create("releaseUpload") {
+            val keyPath = providers.gradleProperty("GYAN_RELEASE_STORE_FILE").orNull
+            if (keyPath != null) {
+                storeFile = file(keyPath)
+                storePassword = providers.gradleProperty("GYAN_RELEASE_STORE_PASSWORD").orNull
+                keyAlias = providers.gradleProperty("GYAN_RELEASE_KEY_ALIAS").orNull
+                keyPassword = providers.gradleProperty("GYAN_RELEASE_KEY_PASSWORD").orNull
+            }
+        }
     }
 
     buildTypes {
+        debug {
+        }
         release {
             isMinifyEnabled = false
+            if (providers.gradleProperty("GYAN_RELEASE_STORE_FILE").isPresent) {
+                signingConfig = signingConfigs.getByName("releaseUpload")
+            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -29,8 +58,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures { compose = true }
-    composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
+    buildFeatures { compose = true; buildConfig = true }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
