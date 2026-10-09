@@ -1,0 +1,53 @@
+name: Build and publish Android release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+
+      - name: Prepare signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "Missing ANDROID_KEYSTORE_BASE64 Actions secret"; exit 1; }
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/gyan-release.jks"
+
+      - name: Build signed APKs
+        env:
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo "Missing Android signing Actions secrets"; exit 1; }
+          ./gradlew :app:assemblePlayRelease :app:assembleSamsungRelease \
+            -PGYAN_RELEASE_STORE_FILE="$RUNNER_TEMP/gyan-release.jks" \
+            -PGYAN_RELEASE_STORE_PASSWORD="$STORE_PASSWORD" \
+            -PGYAN_RELEASE_KEY_ALIAS="$KEY_ALIAS" \
+            -PGYAN_RELEASE_KEY_PASSWORD="$KEY_PASSWORD"
+          mkdir -p release-assets
+          cp app/build/outputs/apk/play/release/*.apk release-assets/Gyan-play.apk
+          cp app/build/outputs/apk/samsung/release/*.apk release-assets/Gyan-samsung.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release-assets/Gyan-play.apk
+            release-assets/Gyan-samsung.apk
