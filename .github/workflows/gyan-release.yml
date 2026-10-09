@@ -1,4 +1,4 @@
-name: Build and publish Android release
+﻿name: Build and publish Android release
 
 on:
   push:
@@ -13,13 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+
+      - name: Set up JDK 17
+        id: setup-java
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@v6.4.0
-      - uses: android-actions/setup-android@v4.0.4
+
+      - uses: gradle/actions/setup-gradle@v4
+
       - name: Install Android SDK 36
+        env:
+          JAVA_HOME: ${{ steps.setup-java.outputs.path }}
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Prepare signing key
@@ -34,13 +40,15 @@ jobs:
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          JAVA_HOME: ${{ steps.setup-java.outputs.path }}
         run: |
           test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo "Missing Android signing Actions secrets"; exit 1; }
-          bash ./gradlew :app:assemblePlayRelease :app:assembleSamsungRelease \
+          ./gradlew :app:assemblePlayRelease :app:assembleSamsungRelease \
             -PGYAN_RELEASE_STORE_FILE="$RUNNER_TEMP/gyan-release.jks" \
             -PGYAN_RELEASE_STORE_PASSWORD="$STORE_PASSWORD" \
             -PGYAN_RELEASE_KEY_ALIAS="$KEY_ALIAS" \
-            -PGYAN_RELEASE_KEY_PASSWORD="$KEY_PASSWORD"
+            -PGYAN_RELEASE_KEY_PASSWORD="$KEY_PASSWORD" \
+            --no-configuration-cache
           mkdir -p release-assets
           cp app/build/outputs/apk/play/release/*.apk release-assets/Gyan-play.apk
           cp app/build/outputs/apk/samsung/release/*.apk release-assets/Gyan-samsung.apk
