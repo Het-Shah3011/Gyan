@@ -625,6 +625,7 @@ fun TodayScreen(nav: NavController) {
             }
         }
 
+        item { ContactUsCard(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
         item { Spacer(Modifier.height(88.dp)) }
     }
 }

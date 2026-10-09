@@ -306,7 +306,7 @@ fun SettingsScreen(
                         "• Attendance tracker with skip-safety warnings\n" +
                         "• Mid-semester attendance override\n" +
                         "• Per-class topic notes\n" +
-                        "• No ads, trackers, or account required\n" +
+                        "• No third-party ads, trackers, or account required\n" +
                         "• Tasks, exams with reminders\n" +
                         "• Money tracker with budgets\n" +
                         "• Subscriptions, warranties, scholarships\n" +
@@ -455,6 +455,7 @@ fun SettingsScreen(
                 )
             }
         }
+        ContactUsCard()
         Spacer(Modifier.height(32.dp))
     }
 }

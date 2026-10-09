@@ -194,6 +194,7 @@ fun FilesScreen() {
                     }
                 }
             }
+            item { ContactUsCard(Modifier.padding(vertical = 8.dp)) }
             item { Spacer(Modifier.height(72.dp)) }
         }
     }

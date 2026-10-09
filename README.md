@@ -8,7 +8,7 @@ inbox with subject/category organization.
 - Kotlin + Jetpack Compose (Material 3)
 - Room database for personal data (local-first)
 - AlarmManager notifications (reminders re-scheduled after reboot)
-- Dark-first Material 3 UI with no ads or advertising SDKs
+- Dark-first Material 3 UI with no third-party advertising SDKs
 - minSdk 31 (Android 12+), compile/target SDK 36
 - Store variants: Play `com.gyan.app`; Samsung `com.gyan.app.samsung`
 
@@ -32,6 +32,9 @@ inbox with subject/category organization.
 - **Track**: subscriptions, product warranties, scholarships.
 - **Files**: Share any PDF/doc from WhatsApp/Drive/downloads into the GYAN
   inbox, then organize into Subject -> Category folders. Opens with any viewer.
+- **Contact us**: GYAN-branded contact cards appear at the bottom of key screens
+  and in the attendance list. Add the Google Forms responder URL in
+  `app/src/main/java/com/gyan/app/ui/ContactUsCard.kt`.
 - **Backup**: export/import all data as a `.het` file. Choose timetable-only
   import to share a schedule while keeping personal attendance, files, tasks,
   and money.

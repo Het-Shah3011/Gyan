@@ -28,3 +28,9 @@ assets to this repository. You do not create or maintain a personal API token.
 
 Do not publish unsigned APKs or change the release key: users will not be able
 to install them over their existing copy.
+
+## Contact form card
+
+When your Google Form is ready, paste its public responder URL into
+`GYAN_CONTACT_FORM_URL` in `app/src/main/java/com/gyan/app/ui/ContactUsCard.kt`.
+The button shows a setup hint until this value is filled in.

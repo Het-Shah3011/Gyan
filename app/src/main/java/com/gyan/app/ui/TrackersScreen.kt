@@ -118,6 +118,7 @@ fun SubscriptionsTab() {
                     }
                 }
             }
+            item { ContactUsCard(Modifier.padding(vertical = 8.dp)) }
             item { androidx.compose.foundation.layout.Spacer(Modifier.padding(72.dp)) }
         }
     }
@@ -239,6 +240,7 @@ fun WarrantiesTab() {
                     }
                 }
             }
+            item { ContactUsCard(Modifier.padding(vertical = 8.dp)) }
             item { androidx.compose.foundation.layout.Spacer(Modifier.padding(72.dp)) }
         }
     }
@@ -366,6 +368,7 @@ fun ScholarshipsTab() {
                     }
                 }
             }
+            item { ContactUsCard(Modifier.padding(vertical = 8.dp)) }
             item { androidx.compose.foundation.layout.Spacer(Modifier.padding(72.dp)) }
         }
     }
