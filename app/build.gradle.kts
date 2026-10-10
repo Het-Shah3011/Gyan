@@ -14,7 +14,7 @@ android {
         minSdk = 31          // Android 12 and above
         targetSdk = 36
         versionCode = 5
-        versionName = "1.2.2"
+        versionName = "1.2.3"
     }
 
     flavorDimensions += "store"
