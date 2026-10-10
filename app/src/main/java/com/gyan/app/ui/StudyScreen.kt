@@ -489,7 +489,6 @@ fun TimetableTab() {
                     }
                 }
             }
-            item { ContactUsCard(Modifier.padding(vertical = 8.dp)) }
             item { Spacer(Modifier.height(88.dp)) }
         }
     }
@@ -1434,7 +1433,6 @@ fun AttendanceTab() {
                 if (i == (subjects.size - 1) / 2) ContactUsCard()
             }
         }
-        item { ContactUsCard(Modifier.padding(vertical = 8.dp)) }
         item { Spacer(Modifier.height(24.dp)) }
     }
 
@@ -1667,7 +1665,6 @@ fun TasksTab(type: String, includeTasks: Boolean) {
                     }
                 }
             }
-            item { ContactUsCard(Modifier.padding(vertical = 8.dp)) }
             item { Spacer(Modifier.padding(72.dp)) }
         }
     }
