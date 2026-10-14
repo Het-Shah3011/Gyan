@@ -16,10 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -34,8 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
@@ -92,83 +87,136 @@ fun TodayScreen(nav: NavController) {
     ) {
         // ---- Hero greeting card ----
         item {
-            Surface(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                color = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(28.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Column(Modifier.padding(18.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
+                // Top row: date + settings icon
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()).format(Date()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    IconButton(
+                        onClick = { nav.navigate("settings") },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()).format(Date()),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(3.dp))
-                            Text(
-                                greeting() + "!",
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            IconButton(
-                                onClick = { nav.navigate("settings") },
-                                modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) { Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary) }
-                        }
-                    }
-
-                    Spacer(Modifier.height(20.dp))
-
-                    // Quick overview
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Classes today
-                        HeroStatCard(
-                            modifier = Modifier.weight(1f),
-                            value = todaySessions.size.toString(),
-                            label = "Classes today",
-                            emoji = "◷",
-                            background = MaterialTheme.colorScheme.primary
-                        )
-                        // Tasks due soon
-                        HeroStatCard(
-                            modifier = Modifier.weight(1f),
-                            value = upcoming.size.toString(),
-                            label = "Due soon",
-                            emoji = "!",
-                            background = MaterialTheme.colorScheme.tertiary
+                        Icon(
+                            Icons.Filled.Settings,
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                    Spacer(Modifier.height(10.dp))
+                }
+
+                Spacer(Modifier.height(6.dp))
+
+                Text(
+                    "${greeting()}!",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                // Stat cards row
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Classes today
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.primary,
                         shape = RoundedCornerShape(18.dp)
                     ) {
-                        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Spent today", color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                style = MaterialTheme.typography.titleSmall)
-                            Text(formatMoney(todaySpent), color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("📅", fontSize = 18.sp)
+                            Text(
+                                todaySessions.size.toString(),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontSize = 22.sp
+                            )
+                            Text(
+                                "Classes today",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f),
+                                fontSize = 10.sp
+                            )
                         }
+                    }
+                    // Tasks due soon
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.secondary,
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("📋", fontSize = 18.sp)
+                            Text(
+                                upcoming.size.toString(),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondary,
+                                fontSize = 22.sp
+                            )
+                            Text(
+                                "Due this week",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondary.copy(alpha = 0.82f),
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                // Spent today strip
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("💸", fontSize = 16.sp)
+                            Text(
+                                "Spent today",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                        Text(
+                            formatMoney(todaySpent),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
         }
 
-        item { Spacer(Modifier.height(16.dp)) }
+        item { Spacer(Modifier.height(8.dp)) }
 
         // ---- Today's Classes ----
         item {
@@ -201,6 +249,10 @@ fun TodayScreen(nav: NavController) {
             }
         } else {
             item {
+                val nowMinutes = run {
+                    val c = java.util.Calendar.getInstance()
+                    c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
+                }
                 Column(
                     Modifier.padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -208,11 +260,24 @@ fun TodayScreen(nav: NavController) {
                     todaySessions.forEach { s ->
                         val sub = subjectMap[s.subjectId]
                         val subColor = sub?.colorArgb?.let { Color(it.toInt()) } ?: MaterialTheme.colorScheme.primary
+                        val isActive = nowMinutes in s.startMinutes..s.endMinutes
                         ElevatedCard(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            elevation = CardDefaults.elevatedCardElevation(1.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.elevatedCardElevation(if (isActive) 4.dp else 1.dp),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = if (isActive)
+                                    MaterialTheme.colorScheme.surface
+                                else MaterialTheme.colorScheme.surface
+                            )
                         ) {
+                            // Accent top stripe for active class
+                            if (isActive) {
+                                Box(
+                                    Modifier.fillMaxWidth().height(3.dp)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                )
+                            }
                             Row(
                                 Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -220,10 +285,10 @@ fun TodayScreen(nav: NavController) {
                                 Box(
                                     Modifier
                                         .width(4.dp)
-                                        .height(64.dp)
+                                        .height(70.dp)
                                         .background(
                                             subColor,
-                                            RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)
+                                            RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)
                                         )
                                 )
                                 Row(
@@ -257,6 +322,21 @@ fun TodayScreen(nav: NavController) {
                                                     )
                                                 }
                                             }
+                                            if (isActive) {
+                                                Surface(
+                                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        "● Active",
+                                                        Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 9.sp
+                                                    )
+                                                }
+                                            }
                                         }
                                         Text(
                                             "${minutesLabel(s.startMinutes)} – ${minutesLabel(s.endMinutes)}" +
@@ -267,12 +347,12 @@ fun TodayScreen(nav: NavController) {
                                     }
                                     // Time pill
                                     Surface(
-                                        color = subColor.copy(alpha = 0.1f),
-                                        shape = RoundedCornerShape(8.dp)
+                                        color = subColor.copy(alpha = 0.12f),
+                                        shape = RoundedCornerShape(10.dp)
                                     ) {
                                         Text(
                                             minutesLabel(s.startMinutes),
-                                            Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = subColor,
                                             fontWeight = FontWeight.Bold
@@ -625,52 +705,13 @@ fun TodayScreen(nav: NavController) {
             }
         }
 
+        item { GyanAdCard(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
         item { ContactUsCard(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
         item { Spacer(Modifier.height(88.dp)) }
     }
 }
 
-@Composable
-private fun HeroStatCard(
-    modifier: Modifier = Modifier,
-    value: String,
-    label: String,
-    emoji: String,
-    small: Boolean = false,
-    background: Color = MaterialTheme.colorScheme.primary
-) {
-    Surface(
-        modifier = modifier,
-        color = background,
-        shape = RoundedCornerShape(18.dp)
-    ) {
-        Column(
-            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.Start,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(emoji, fontSize = 18.sp)
-            Text(
-                value,
-                style = if (small) MaterialTheme.typography.titleSmall
-                else MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Start,
-                fontSize = if (small) 14.sp else 22.sp
-            )
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.82f),
-                textAlign = TextAlign.Start,
-                fontSize = 10.sp
-            )
-        }
-    }
-}
+
 
 @Composable
 private fun DashboardSection(

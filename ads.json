@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "ads": [
+    {
+      "id": "sample-ad",
+      "enabled": false,
+      "title": "Your ad title",
+      "description": "A short description for students",
+      "imageUrl": "https://raw.githubusercontent.com/Het-Shah3011/Gyan/main/ads/sample.jpg",
+      "link": "https://example.com",
+      "buttonText": "Open"
+    }
+  ]
+}

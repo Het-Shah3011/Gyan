@@ -77,18 +77,66 @@ object FileOrganizer {
         GyanRepository.get(context).dao.deleteFile(entity)
     }
 
+    /** MIME type for a stored file — covers PDF, images, Office docs, PPTX and more. */
+    fun mimeType(file: File): String {
+        val ext = MimeTypeMap.getFileExtensionFromUrl(Uri.encode(file.name))?.lowercase() ?: ""
+        return when (ext) {
+            "pdf"  -> "application/pdf"
+            "jpg", "jpeg" -> "image/jpeg"
+            "png"  -> "image/png"
+            "webp" -> "image/webp"
+            "doc"  -> "application/msword"
+            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "xls"  -> "application/vnd.ms-excel"
+            "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            "ppt"  -> "application/vnd.ms-powerpoint"
+            "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            "zip"  -> "application/zip"
+            "txt"  -> "text/plain"
+            else   -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+                ?: "application/octet-stream"
+        }
+    }
+
     fun open(context: Context, entity: StudyFileEntity) {
         try {
             val file = File(entity.path)
+            if (!file.exists()) {
+                Toast.makeText(context, "File not found — it may have been moved", Toast.LENGTH_SHORT).show()
+                return
+            }
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            val ext = MimeTypeMap.getFileExtensionFromUrl(file.name)
-            val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.lowercase())
-                ?: "application/octet-stream"
-            val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
+            val mime = mimeType(file)
+            val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            context.startActivity(intent)
+            // Wrap in a chooser so the user can pick Google Drive, PDF viewer, WPS, etc.
+            val chooser = Intent.createChooser(viewIntent, "Open with…")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
         } catch (e: Exception) {
-            Toast.makeText(context, "No app found to open this file", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "No app found to open this file type", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun share(context: Context, entity: StudyFileEntity) {
+        try {
+            val file = File(entity.path)
+            if (!file.exists()) {
+                Toast.makeText(context, "File not found", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val mime = mimeType(file)
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = mime
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(shareIntent, "Share \"${entity.displayName}\" via…")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Could not share this file", Toast.LENGTH_SHORT).show()
         }
     }
 }

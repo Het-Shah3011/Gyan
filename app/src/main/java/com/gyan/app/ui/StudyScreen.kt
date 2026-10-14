@@ -527,8 +527,8 @@ fun TimetableTab() {
         ) {
             Text("Subject", style = MaterialTheme.typography.labelMedium)
             SubjectPicker(subjects, subjectId) { subjectId = it }
-            FormField("Start time (HH:MM)", start) { start = it }
-            FormField("End time (HH:MM)", end) { end = it }
+            TimePickerField("Start time", parseMinutes(start) ?: 9 * 60) { start = minutesLabel(it) }
+            TimePickerField("End time", parseMinutes(end) ?: 10 * 60) { end = minutesLabel(it) }
             FormField("Room (optional)", room) { room = it }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isLab, onCheckedChange = { isLab = it })
@@ -552,22 +552,10 @@ fun TimetableTab() {
         var end by remember { mutableStateOf("10:00") }
         var room by remember { mutableStateOf("") }
         var isLab by remember { mutableStateOf(false) }
-        // Date as "dd/MM/yyyy"
-        var dateText by remember {
-            mutableStateOf(SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()))
-        }
+        var dateMillis by remember { mutableStateOf(todayStartMillis()) }
         val startMin = parseMinutes(start)
         val endMin   = parseMinutes(end)
-        val parsedDate = runCatching {
-            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).let { sdf ->
-                sdf.isLenient = false
-                val cal = Calendar.getInstance()
-                cal.time = sdf.parse(dateText)!!
-                cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-                cal.timeInMillis
-            }
-        }.getOrNull()
+        val parsedDate = dateMillis
         DialogForm(
             title = "Add one-off / makeup class",
             onDismiss = { showAddOneOff = false },
@@ -596,9 +584,9 @@ fun TimetableTab() {
         ) {
             Text("Subject", style = MaterialTheme.typography.labelMedium)
             SubjectPicker(subjects, subjectId) { subjectId = it }
-            FormField("Date (dd/MM/yyyy)", dateText) { dateText = it }
-            FormField("Start time (HH:MM)", start) { start = it }
-            FormField("End time (HH:MM)", end) { end = it }
+            DatePickerField("Date", dateMillis) { dateMillis = it }
+            TimePickerField("Start time", parseMinutes(start) ?: 9 * 60) { start = minutesLabel(it) }
+            TimePickerField("End time", parseMinutes(end) ?: 10 * 60) { end = minutesLabel(it) }
             FormField("Room (optional)", room) { room = it }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isLab, onCheckedChange = { isLab = it })
@@ -622,20 +610,17 @@ fun TimetableTab() {
         var end by remember(original.id) { mutableStateOf(minutesLabel(original.endMinutes)) }
         var room by remember(original.id) { mutableStateOf(original.room) }
         var isLab by remember(original.id) { mutableStateOf(original.isLab) }
-        var dateText by remember(original.id) {
-            mutableStateOf(original.oneOffDateMillis?.let { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it)) } ?: "")
+        var dateMillis by remember(original.id) {
+            mutableStateOf(original.oneOffDateMillis ?: todayStartMillis())
         }
         val startMin = parseMinutes(start)
         val endMin = parseMinutes(end)
-        val dateMillis = if (original.oneOffDateMillis == null) null else runCatching {
-            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply { isLenient = false }
-                .parse(dateText)?.let { Calendar.getInstance().apply { time = it; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis }
-        }.getOrNull()
+        val selectedDate = if (original.oneOffDateMillis == null) null else dateMillis
         DialogForm(
             title = "Edit class",
             onDismiss = { editTarget = null },
             saveEnabled = subjectId != null && startMin != null && endMin != null && endMin!! > startMin!! &&
-                (original.oneOffDateMillis == null || (dateMillis != null && dateMillis >= todayStartMillis())),
+                (original.oneOffDateMillis == null || selectedDate!! >= todayStartMillis()),
             onSave = {
                 scope.launch {
                     repo.dao.upsertSession(original.copy(
@@ -645,7 +630,7 @@ fun TimetableTab() {
                         endMinutes = endMin!!,
                         room = room.trim(),
                         isLab = isLab,
-                        oneOffDateMillis = dateMillis
+                        oneOffDateMillis = selectedDate
                     ))
                     LectureAlarmScheduler.reschedule(context, repo.dao.sessionsOnce(), repo.dao.subjectsOnce(), repo.dao.attendanceOnce(), repo.dao.attendanceOverridesOnce())
                 }
@@ -657,9 +642,9 @@ fun TimetableTab() {
             if (original.oneOffDateMillis == null) {
                 Text("Weekday", style = MaterialTheme.typography.labelMedium)
                 ChipRow(DAY_LABELS, DAY_LABELS[DAY_VALUES.indexOf(day).coerceAtLeast(0)]) { day = DAY_VALUES[DAY_LABELS.indexOf(it)] }
-            } else FormField("Date (dd/MM/yyyy)", dateText) { dateText = it }
-            FormField("Start time (HH:MM)", start) { start = it }
-            FormField("End time (HH:MM)", end) { end = it }
+            } else DatePickerField("Date", dateMillis) { dateMillis = it }
+            TimePickerField("Start time", startMin ?: 9 * 60) { start = minutesLabel(it) }
+            TimePickerField("End time", endMin ?: 10 * 60) { end = minutesLabel(it) }
             FormField("Room", room) { room = it }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isLab, onCheckedChange = { isLab = it })
@@ -717,6 +702,18 @@ fun AttendanceTab() {
     var noteTarget by remember { mutableStateOf<SessionEntity?>(null) }
     val today = todayStartMillis()
     val todayDow = currentDayOfWeek()
+    val allTodaySessions = sessions.filter { session ->
+        if (session.oneOffDateMillis != null) session.oneOffDateMillis == today
+        else session.dayOfWeek == todayDow
+    }.sortedBy { it.startMinutes }
+    val firstTodayClassBySubject = allTodaySessions.groupBy { it.subjectId }
+        .mapValues { (_, classes) -> classes.minOf { it.startMinutes } }
+    val attendanceSubjects = subjects.withIndex()
+        .sortedWith(compareBy<IndexedValue<SubjectEntity>>(
+            { firstTodayClassBySubject[it.value.id] ?: Int.MAX_VALUE },
+            { it.index }
+        ))
+        .map { it.value }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -792,6 +789,130 @@ fun AttendanceTab() {
                 }
             }
         } else {
+            // ── Today's classes quick-view ────────────────────────────────
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "📅  Today's Classes",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            SimpleDateFormat("EEE, dd MMM", Locale.getDefault()).format(Date()),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (allTodaySessions.isEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Box(
+                                Modifier.fillMaxWidth().padding(18.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "No classes today 🎉  Mark attendance after each class",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        allTodaySessions.forEach { session ->
+                            val sub = subjects.find { it.id == session.subjectId }
+                            val sessionRecord = attendance.firstOrNull {
+                                it.subjectId == session.subjectId && it.dayMillis == today && it.sessionId == session.id
+                            }
+                            val sessionTopic = classNotes.firstOrNull {
+                                it.subjectId == session.subjectId && it.sessionId == session.id && it.dayMillis == today
+                            }?.topic
+                            val subColor = sub?.colorArgb?.let { Color(it.toInt()) } ?: MaterialTheme.colorScheme.primary
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.surface,
+                                shape = RoundedCornerShape(14.dp),
+                                shadowElevation = 1.dp
+                            ) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier.width(4.dp).height(132.dp)
+                                            .background(subColor, RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp))
+                                    )
+                                    Column(
+                                        Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(sub?.name ?: "Unknown", style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold, maxLines = 2)
+                                            Text(
+                                                "${minutesLabel(session.startMinutes)} – ${minutesLabel(session.endMinutes)}" +
+                                                    if (session.isLab) "  •  Lab" else "" +
+                                                    if (session.room.isNotBlank()) "  •  Room ${session.room}" else "",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            }
+                                            Surface(color = subColor.copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
+                                                Text(minutesLabel(session.startMinutes), Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    style = MaterialTheme.typography.labelSmall, color = subColor, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                        if (sub != null) {
+                                            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.CenterVertically) {
+                                                val shape = RoundedCornerShape(8.dp)
+                                                Surface(onClick = { scope.launch {
+                                                    repo.dao.markAttendance(AttendanceEntity(sub.id, today, "PRESENT", session.id, session.isLab))
+                                                    refreshLectureReminders()
+                                                } }, modifier = Modifier.weight(1f), color = if (sessionRecord?.status == "PRESENT") Color(0xFF22C55E) else Color(0xFF22C55E).copy(alpha = .12f), shape = shape) {
+                                                    Text("✓ Present", Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp), textAlign = TextAlign.Center,
+                                                        style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false,
+                                                        color = if (sessionRecord?.status == "PRESENT") Color.White else Color(0xFF22C55E), fontWeight = FontWeight.SemiBold)
+                                                }
+                                                Surface(onClick = { scope.launch {
+                                                    repo.dao.markAttendance(AttendanceEntity(sub.id, today, "ABSENT", session.id, session.isLab))
+                                                    refreshLectureReminders()
+                                                } }, modifier = Modifier.weight(1f), color = if (sessionRecord?.status == "ABSENT") Color(0xFFEF4444) else Color(0xFFEF4444).copy(alpha = .12f), shape = shape) {
+                                                    Text("✗ Absent", Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp), textAlign = TextAlign.Center,
+                                                        style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false,
+                                                        color = if (sessionRecord?.status == "ABSENT") Color.White else Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
+                                                }
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                                if (sessionRecord != null) Text("Undo", Modifier.clickable { scope.launch {
+                                                    repo.dao.clearAttendance(sub.id, today, session.id); refreshLectureReminders()
+                                                } }.padding(vertical = 4.dp), style = MaterialTheme.typography.labelSmall,
+                                                    maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(if (sessionTopic.isNullOrBlank()) "+ Add topic" else "Edit topic",
+                                                    Modifier.clickable { noteTarget = session }.padding(vertical = 4.dp),
+                                                    style = MaterialTheme.typography.labelSmall, maxLines = 1, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                            if (!sessionTopic.isNullOrBlank()) Text("Topic: $sessionTopic", style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
             // ── Mid-semester info banner ──────────────────────────────────
             item {
                 Surface(
@@ -821,8 +942,9 @@ fun AttendanceTab() {
                     }
                 }
             }
-            items(subjects.size) { i ->
-                val sub = subjects[i]
+
+            items(attendanceSubjects.size) { i ->
+                val sub = attendanceSubjects[i]
                 val allRecords = attendance.filter { it.subjectId == sub.id }
 
                 // Split theory vs lab records
@@ -873,15 +995,14 @@ fun AttendanceTab() {
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             // Header row
-                            Row(
+                            Column(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Row(
+                                    Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.weight(1f)
                                 ) {
                                     Box(
                                         Modifier.size(44.dp).clip(RoundedCornerShape(12.dp))
@@ -899,9 +1020,7 @@ fun AttendanceTab() {
                                         Text(
                                             sub.name,
                                             style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            fontWeight = FontWeight.SemiBold
                                         )
                                         if (sub.code.isNotBlank()) {
                                             Text(
@@ -913,8 +1032,9 @@ fun AttendanceTab() {
                                     }
                                 }
                                 Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     // Theory percentage badge
                                     Surface(
@@ -1192,163 +1312,7 @@ fun AttendanceTab() {
                             }
 
                             // ---- Today's sessions quick-mark ----
-                            if (todaySessions.isNotEmpty()) {
-                                Box(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .height(1.dp)
-                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                )
-                                Text(
-                                    "Today's classes",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                // Each session gets its own mark row
-                                todaySessions.forEach { session ->
-                                    val sessionRecord = allRecords.firstOrNull {
-                                        it.dayMillis == today && it.sessionId == session.id
-                                    }
-                                    val sessionColor = if (session.isLab) Color(0xFF6D4C41) else subColor
-
-                                            Surface(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Row(
-                                            Modifier.fillMaxWidth().padding(10.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            // Time + type
-                                            Column(Modifier.width(72.dp)) {
-                                                Text(
-                                                    minutesLabel(session.startMinutes),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = sessionColor
-                                                )
-                                                if (session.isLab) {
-                                                    Text(
-                                                        "LAB",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = Color(0xFF6D4C41),
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 9.sp
-                                                    )
-                                                }
-                                            }
-
-                                            // Status indicator
-                                            val statusColor = when (sessionRecord?.status) {
-                                                "PRESENT" -> Color(0xFF22C55E)
-                                                "ABSENT" -> Color(0xFFEF4444)
-                                                else -> MaterialTheme.colorScheme.outlineVariant
-                                            }
-                                            Box(
-                                                Modifier.size(8.dp).clip(CircleShape).background(statusColor)
-                                            )
-
-                                            // Present / Absent chips
-                                            Row(
-                                                Modifier.weight(1f),
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                            ) {
-                                                val chipShape = RoundedCornerShape(8.dp)
-                                                // Present chip
-                                                val presentSelected = sessionRecord?.status == "PRESENT"
-                                                Surface(
-                                                    onClick = {
-                                                        scope.launch {
-                                                            repo.dao.markAttendance(
-                                                                AttendanceEntity(
-                                                                    subjectId = sub.id,
-                                                                    dayMillis = today,
-                                                                    status = "PRESENT",
-                                                                    sessionId = session.id,
-                                                                    isLab = session.isLab
-                                                                )
-                                                            )
-                                                            refreshLectureReminders()
-                                                        }
-                                                    },
-                                                    color = if (presentSelected) Color(0xFF22C55E) else Color(0xFF22C55E).copy(alpha = 0.1f),
-                                                    shape = chipShape,
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    Text(
-                                                        "✓ Present",
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp).fillMaxWidth(),
-                                                        textAlign = TextAlign.Center,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = if (presentSelected) Color.White else Color(0xFF22C55E),
-                                                        fontWeight = FontWeight.SemiBold
-                                                    )
-                                                }
-                                                // Absent chip
-                                                val absentSelected = sessionRecord?.status == "ABSENT"
-                                                Surface(
-                                                    onClick = {
-                                                        scope.launch {
-                                                            repo.dao.markAttendance(
-                                                                AttendanceEntity(
-                                                                    subjectId = sub.id,
-                                                                    dayMillis = today,
-                                                                    status = "ABSENT",
-                                                                    sessionId = session.id,
-                                                                    isLab = session.isLab
-                                                                )
-                                                            )
-                                                            refreshLectureReminders()
-                                                        }
-                                                    },
-                                                    color = if (absentSelected) Color(0xFFEF4444) else Color(0xFFEF4444).copy(alpha = 0.1f),
-                                                    shape = chipShape,
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    Text(
-                                                        "✗ Absent",
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp).fillMaxWidth(),
-                                                        textAlign = TextAlign.Center,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = if (absentSelected) Color.White else Color(0xFFEF4444),
-                                                        fontWeight = FontWeight.SemiBold
-                                                    )
-                                                }
-                                            }
-                                            // Undo
-                                            if (sessionRecord != null) {
-                                                Text(
-                                                    "Undo",
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(6.dp))
-                                                        .clickable {
-                                                            scope.launch {
-                                                                repo.dao.clearAttendance(sub.id, today, session.id)
-                                                                refreshLectureReminders()
-                                                            }
-                                                        }
-                                                        .padding(horizontal = 6.dp, vertical = 4.dp),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                            Text(
-                                                if (classNotes.any { it.subjectId == sub.id && it.sessionId == session.id && it.dayMillis == today }) "Note" else "+ Topic",
-                                                modifier = Modifier.clickable { noteTarget = session },
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-                                    classNotes.firstOrNull { it.subjectId == sub.id && it.sessionId == session.id && it.dayMillis == today }
-                                        ?.let { note ->
-                                            Text("📖 ${note.topic}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                }
-                            } else {
+                            if (todaySessions.isEmpty()) {
                                 // Manual mark when no sessions are scheduled today
                                 val todayRecord = allRecords.firstOrNull { it.dayMillis == today && it.sessionId == 0L }
                                 Box(
@@ -1357,18 +1321,17 @@ fun AttendanceTab() {
                                         .height(1.dp)
                                         .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                                 )
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(
                                         "Mark today:",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                     val chipShape = RoundedCornerShape(8.dp)
                                     val presentSelected = todayRecord?.status == "PRESENT"
                                     Surface(
+                                        modifier = Modifier.weight(1f),
                                         onClick = {
                                             scope.launch {
                                                 repo.dao.markAttendance(
@@ -1382,14 +1345,18 @@ fun AttendanceTab() {
                                     ) {
                                         Text(
                                             "✓ Present",
-                                            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
                                             style = MaterialTheme.typography.labelSmall,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                            softWrap = false,
                                             color = if (presentSelected) Color.White else Color(0xFF22C55E),
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
                                     val absentSelected = todayRecord?.status == "ABSENT"
                                     Surface(
+                                        modifier = Modifier.weight(1f),
                                         onClick = {
                                             scope.launch {
                                                 repo.dao.markAttendance(
@@ -1403,8 +1370,11 @@ fun AttendanceTab() {
                                     ) {
                                         Text(
                                             "✗ Absent",
-                                            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
                                             style = MaterialTheme.typography.labelSmall,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                            softWrap = false,
                                             color = if (absentSelected) Color.White else Color(0xFFEF4444),
                                             fontWeight = FontWeight.SemiBold
                                         )
@@ -1425,12 +1395,16 @@ fun AttendanceTab() {
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                if (i == (subjects.size - 1) / 2) ContactUsCard()
+                if (i == (attendanceSubjects.size - 1) / 2) {
+                    GyanAdCard()
+                    ContactUsCard()
+                }
             }
         }
         item { Spacer(Modifier.height(24.dp)) }

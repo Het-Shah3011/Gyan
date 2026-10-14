@@ -353,9 +353,9 @@ fun SettingsScreen(
                 Text("About GYAN", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "GYAN v${BuildConfig.VERSION_NAME} — your student life planner.\n" +
-                        "• Timetable with 10-min lecture notifications\n" +
-                        "• Attendance tracker with skip-safety warnings\n" +
-                        "• Mid-semester attendance override\n" +
+                        "• Make your daily life more easier\n" +
+                        "• Save time\n" +
+                        "• Save attendence\n" +
                         "• Per-class topic notes\n" +
                         "• No third-party ads, trackers, or account required\n" +
                         "• Tasks, exams with reminders\n" +
@@ -392,7 +392,7 @@ fun SettingsScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        "Crafted with ❤️",
+                        "Crafted By Our Team",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -418,7 +418,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                         )
                         Text(
-                            "Het Shah",
+                            "Het Shah and Shreyansh Belani",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.primary
@@ -427,15 +427,16 @@ fun SettingsScreen(
                 }
 
                 Text(
-                    "A passionate developer who turned the chaos of student life into a beautifully crafted app. " +
-                        "Het Shah built GYAN from the ground up — every feature, every screen, every line of code — " +
-                        "with one mission: to make student life simpler, smarter, and stress-free. 🚀",
+                    "GYAN is built and maintained by our team. " +
+                        "Het Shah built GYAN from the ground up — every feature, every screen, every line of code. " +
+                        "For any issues, contact Het Shah. 🚀",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
 
+                // GitHub — updates only, NOT open source
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -444,7 +445,7 @@ fun SettingsScreen(
                         .clickable {
                             val intent = Intent(
                                 Intent.ACTION_VIEW,
-                                Uri.parse("https://github.com/Het-Shah3011/Gyan")
+                                Uri.parse("https://github.com/Het-Shah3011/Gyan/releases")
                             )
                             context.startActivity(intent)
                         }
@@ -458,16 +459,21 @@ fun SettingsScreen(
                     )
                     Column {
                         Text(
-                            "Open Source on GitHub",
+                            "GET UPDATES FROM GITHUB",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                         )
                         Text(
-                            "github.com/Het-Shah3011/Gyan",
+                            "github.com/Het-Shah3011/Gyan/releases",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary,
                             textDecoration = TextDecoration.Underline
+                        )
+                        Text(
+                            "⚠️ GYAN is not open source — the code is private. GitHub is for app releases & downloads only.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                         )
                     }
                 }
@@ -491,16 +497,46 @@ fun SettingsScreen(
             }
         }
 
+        // ── How to use card ──────────────────────────────────────────────────
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("📖  How to use GYAN", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "Quick guide to all features:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "1️⃣  Study → Timetable\n" +
+                    "   Add recurring weekly classes. Tap ＋, pick a subject, day, and time (e.g. 09:00 AM or 14:30). College hours: 9 AM – 5 PM.\n\n" +
+                    "2️⃣  Study → Attendance\n" +
+                    "   After each class, mark Present / Absent / Cancel on the subject card. Today's classes appear at the top for quick access.\n\n" +
+                    "3️⃣  Study → Tasks & Exams\n" +
+                    "   Log assignments and exam dates. GYAN sends reminders before deadlines.\n\n" +
+                    "4️⃣  Files\n" +
+                    "   Share any PDF or PPTX from WhatsApp / Google Drive into GYAN — it lands in Inbox. Tap ⋮ → Open to view, or Share to send to another app. Tap Organize to sort into subject category.\n\n" +
+                    "5️⃣  Money\n" +
+                    "   Log daily expenses and set a monthly budget. A daily summary notification arrives at 9 PM.\n\n" +
+                    "6️⃣  Backup (.het)\n" +
+                    "   Export a full backup for yourself, or export timetable-only to share your schedule with classmates who can import it without losing their own data.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         // ── Tips card ────────────────────────────────────────────────────────
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Tips", style = MaterialTheme.typography.titleMedium)
+                Text("💡  Tips & Tricks", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "• Share a PDF from WhatsApp → choose GYAN → it appears in the Inbox\n" +
-                        "• Grant notification permission so lecture alarms fire\n" +
-                        "• .het files = JSON inside — share your timetable with classmates\n" +
-                        "• Use 'Timetable only' import so their tasks/money stay untouched\n" +
-                        "• Set your starting attendance in Attendance tab if you joined mid-sem",
+                    "• Share a PDF or PPTX from WhatsApp → choose GYAN → appears in Inbox\n" +
+                        "• Open files: GYAN shows a chooser (PDF viewer, Google Drive, WPS, etc.)\n" +
+                        "• Time format: 09:00 AM or 14:30 — both work in timetable\n" +
+                        "• .het files = your backup — share timetable with classmates\n" +
+                        "• Use 'Timetable only' import so classmates' personal data stays untouched\n" +
+                        "• Tap ✏️ in Attendance to set starting % if you joined mid-semester\n" +
+                        "• Grant notification permission so lecture alarms fire on time",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

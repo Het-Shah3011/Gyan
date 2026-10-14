@@ -1,5 +1,8 @@
 package com.gyan.app.ui
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.text.format.DateFormat as AndroidDateFormat
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +16,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,8 +32,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import kotlin.math.ceil
-import kotlin.math.floor
 
 // ---------------- date / money helpers ----------------
 
@@ -38,6 +40,56 @@ fun formatDateTime(millis: Long): String =
 
 fun formatDate(millis: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(millis))
+
+@Composable
+fun DatePickerField(label: String, selectedMillis: Long, onDateSelected: (Long) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    OutlinedButton(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = {
+            val selected = Calendar.getInstance().apply { timeInMillis = selectedMillis }
+            DatePickerDialog(
+                context,
+                { _, year, month, day ->
+                    selected.set(year, month, day, 0, 0, 0)
+                    selected.set(Calendar.MILLISECOND, 0)
+                    onDateSelected(selected.timeInMillis)
+                },
+                selected.get(Calendar.YEAR),
+                selected.get(Calendar.MONTH),
+                selected.get(Calendar.DAY_OF_MONTH)
+            ).show()
+        }
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label)
+            Text(formatDate(selectedMillis), color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+fun TimePickerField(label: String, selectedMinutes: Int, onTimeSelected: (Int) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val safeMinutes = selectedMinutes.coerceIn(0, 23 * 60 + 59)
+    OutlinedButton(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = {
+            TimePickerDialog(
+                context,
+                { _, hour, minute -> onTimeSelected(hour * 60 + minute) },
+                safeMinutes / 60,
+                safeMinutes % 60,
+                AndroidDateFormat.is24HourFormat(context)
+            ).show()
+        }
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label)
+            Text(minutesLabel(safeMinutes), color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
 
 fun formatMoney(v: Float): String {
     val s = if (v == v.toLong().toFloat()) v.toLong().toString() else String.format("%.2f", v)
@@ -64,10 +116,37 @@ fun currentDayOfWeek(): Int = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
 fun daysUntil(millis: Long): Int =
     ((millis - System.currentTimeMillis()) / 86400000L).toInt()
 
-fun minutesLabel(min: Int): String = String.format("%02d:%02d", min / 60, min % 60)
+fun minutesLabel(min: Int): String {
+    val h24 = min / 60
+    val m   = min % 60
+    val period = if (h24 < 12) "AM" else "PM"
+    val h12 = when {
+        h24 == 0  -> 12
+        h24 <= 12 -> h24
+        else      -> h24 - 12
+    }
+    return "%02d:%02d %s".format(h12, m, period)
+}
 
 fun parseMinutes(text: String): Int? {
-    val p = text.trim().split(":")
+    val t = text.trim()
+    // Accept 12-hour format: "hh:mm AM" or "hh:mm PM" (returned by minutesLabel)
+    val amPmRegex = Regex("""^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)$""", RegexOption.IGNORE_CASE)
+    val amPmMatch = amPmRegex.matchEntire(t)
+    if (amPmMatch != null) {
+        val h = amPmMatch.groupValues[1].toIntOrNull() ?: return null
+        val m = amPmMatch.groupValues[2].toIntOrNull() ?: return null
+        val period = amPmMatch.groupValues[3].uppercase()
+        if (h !in 1..12 || m !in 0..59) return null
+        val h24 = when {
+            period == "AM" && h == 12 -> 0
+            period == "PM" && h != 12 -> h + 12
+            else -> h
+        }
+        return h24 * 60 + m
+    }
+    // Accept 24-hour format: "HH:MM"
+    val p = t.split(":")
     if (p.size != 2) return null
     val h = p[0].trim().toIntOrNull() ?: return null
     val m = p[1].trim().toIntOrNull() ?: return null
@@ -124,12 +203,20 @@ fun attendanceStats(
         else -> attended * 100f / total
     }
     val forecastAvailable = !hasUnweightedBaseline && total > 0
-    val minimum = minPct.coerceIn(0f, 100f)
-    val m = minimum / 100f
-    val canMiss = if (forecastAvailable && pct >= minimum && m > 0f && m < 1f)
-        floor(attended / m - total).toInt().coerceAtLeast(0) else 0
-    val mustAttend = if (forecastAvailable && pct < minimum && m < 1f)
-        ceil((m * total - attended) / (1f - m)).toInt().coerceAtLeast(0) else 0
+    val minimum = minPct.coerceIn(0f, 100f).toInt()   // integer percent, e.g. 75
+    // ── Exact integer arithmetic — zero float rounding errors ────────────────
+    // canMiss:    floor((100*A - M*T) / M)  — classes skippable while staying >= M%
+    // mustAttend: ceil((M*T - 100*A) / (100-M))  — classes needed to climb back to M%
+    //             ceiling via integer: (num + den - 1) / den
+    val canMiss = if (forecastAvailable && pct >= minimum.toFloat() && minimum > 0) {
+        val num = 100 * attended - minimum * total
+        if (num >= 0) (num / minimum).coerceAtLeast(0) else 0
+    } else 0
+    val mustAttend = if (forecastAvailable && pct < minimum.toFloat() && minimum < 100) {
+        val num = minimum * total - 100 * attended
+        val den = 100 - minimum
+        if (num > 0 && den > 0) ((num + den - 1) / den).coerceAtLeast(0) else 0
+    } else 0
     return AttStats(attended, total, pct, canMiss, mustAttend, forecastAvailable)
 }
 

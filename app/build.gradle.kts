@@ -13,8 +13,8 @@ android {
         applicationId = "com.gyan.app"
         minSdk = 31          // Android 12 and above
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.2.3"
+        versionCode = 6
+        versionName = "1.2.4"
     }
 
     flavorDimensions += "store"

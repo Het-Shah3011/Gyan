@@ -117,7 +117,10 @@ fun FilesScreen() {
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         "application/vnd.ms-excel",
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        "application/zip"
+                        "application/vnd.ms-powerpoint",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "application/zip",
+                        "*/*"
                     )
                 )
             }) { Icon(Icons.Filled.Add, contentDescription = "Import file") }
@@ -158,6 +161,7 @@ fun FilesScreen() {
                     FileRow(
                         inbox[i], subjectMap,
                         onOpen = { FileOrganizer.open(context, it) },
+                        onShare = { FileOrganizer.share(context, it) },
                         onOrganize = { organizeTarget = it },
                         onRename = { renameTarget = it },
                         onDelete = { deleteTarget = it }
@@ -186,6 +190,7 @@ fun FilesScreen() {
                         FileRow(
                             group[i], subjectMap,
                             onOpen = { FileOrganizer.open(context, it) },
+                            onShare = { FileOrganizer.share(context, it) },
                             onOrganize = { organizeTarget = it },
                             onRename = { renameTarget = it },
                             onDelete = { deleteTarget = it },
@@ -319,6 +324,7 @@ private fun FileRow(
     entity: StudyFileEntity,
     subjectMap: Map<Long, com.gyan.app.data.SubjectEntity>,
     onOpen: (StudyFileEntity) -> Unit,
+    onShare: (StudyFileEntity) -> Unit,
     onOrganize: (StudyFileEntity) -> Unit,
     onRename: (StudyFileEntity) -> Unit,
     onDelete: (StudyFileEntity) -> Unit,
@@ -340,6 +346,7 @@ private fun FileRow(
                 ext in listOf("jpg", "jpeg", "png", "webp") -> "IMG" to Color(0xFF1E88E5)
                 ext in listOf("doc", "docx") -> "DOC" to Color(0xFF1565C0)
                 ext in listOf("xls", "xlsx") -> "XLS" to Color(0xFF2E7D32)
+                ext in listOf("ppt", "pptx") -> "PPT" to Color(0xFFD84315)
                 ext == "zip" -> "ZIP" to Color(0xFF6D4C41)
                 else -> "TXT" to Color(0xFF546E7A)
             }
@@ -374,6 +381,7 @@ private fun FileRow(
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(text = { Text("Open") }, onClick = { menuOpen = false; onOpen(entity) })
+                    DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; onShare(entity) })
                     DropdownMenuItem(text = { Text("Organize") }, onClick = { menuOpen = false; onOrganize(entity) })
                     DropdownMenuItem(text = { Text("Rename") }, onClick = { menuOpen = false; onRename(entity) })
                     DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; onDelete(entity) })

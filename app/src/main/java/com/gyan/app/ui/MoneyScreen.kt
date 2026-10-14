@@ -188,7 +188,7 @@ fun MoneyScreen() {
         var amount by remember(original?.id) { mutableStateOf(original?.amount?.toString().orEmpty()) }
         var category by remember(original?.id) { mutableStateOf(original?.category ?: DEFAULT_CATEGORIES.first()) }
         var note by remember(original?.id) { mutableStateOf(original?.note.orEmpty()) }
-        var dateText by remember(original?.id) { mutableStateOf(original?.dateMillis?.let { java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(it)) }.orEmpty()) }
+        var dateMillis by remember(original?.id) { mutableStateOf(original?.dateMillis ?: todayStartMillis()) }
         var isIncome by remember(original?.id) { mutableStateOf(original?.isIncome ?: false) }
         DialogForm(
             title = if (original == null) "Add money entry" else "Edit money entry",
@@ -196,7 +196,7 @@ fun MoneyScreen() {
             saveEnabled = amount.toFloatOrNull() != null && amount.toFloatOrNull()!! > 0f,
             onSave = {
                 scope.launch {
-                    val day = parseDateTime(dateText) ?: System.currentTimeMillis()
+                    val day = dateMillis
                     repo.dao.upsertExpense(original?.copy(amount = amount.toFloat(), category = category.trim(), note = note.trim(), dateMillis = day, isIncome = isIncome)
                         ?: ExpenseEntity(amount = amount.toFloat(), category = category.trim(), note = note.trim(), dateMillis = day, isIncome = isIncome))
                 }
@@ -212,7 +212,7 @@ fun MoneyScreen() {
             Text("Category", style = MaterialTheme.typography.labelMedium)
             ChipRow(DEFAULT_CATEGORIES, category) { category = it }
             FormField("Category name", category) { category = it }
-            FormField("Date (dd/MM/yyyy)", dateText) { dateText = it }
+            DatePickerField("Date", dateMillis) { dateMillis = it }
             FormField("Note (optional)", note) { note = it }
         }
     }

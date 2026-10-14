@@ -1,0 +1,294 @@
+{
+  "magic": "GYAN_HET_BACKUP",
+  "version": 4,
+  "exportedAt": 1791936000000,
+  "profile": "TIMETABLE_ONLY",
+  "batch": "1A4",
+  "subjects": [
+    {
+      "id": 1,
+      "name": "Data Structures (DS)",
+      "code": "102040304",
+      "semester": "3CE1 ODD 2026-2027",
+      "colorArgb": 4284955315,
+      "minAttendance": 75,
+      "totalUnits": 5
+    },
+    {
+      "id": 2,
+      "name": "Database Management System (DBMS)",
+      "code": "102040305",
+      "semester": "3CE1 ODD 2026-2027",
+      "colorArgb": 4280391411,
+      "minAttendance": 75,
+      "totalUnits": 5
+    },
+    {
+      "id": 3,
+      "name": "Digital Fundamentals (DF)",
+      "code": "102043401",
+      "semester": "3CE1 ODD 2026-2027",
+      "colorArgb": 4279990118,
+      "minAttendance": 75,
+      "totalUnits": 5
+    },
+    {
+      "id": 4,
+      "name": "Probability - Statistics and Numerical Methods (PSNM)",
+      "code": "102003406",
+      "semester": "3CE1 ODD 2026-2027",
+      "colorArgb": 4294940672,
+      "minAttendance": 75,
+      "totalUnits": 5
+    },
+    {
+      "id": 5,
+      "name": "Universal Human Values (UHV)",
+      "code": "102003411",
+      "semester": "3CE1 ODD 2026-2027",
+      "colorArgb": 4282064383,
+      "minAttendance": 75,
+      "totalUnits": 5
+    },
+    {
+      "id": 6,
+      "name": "Entrepreneurship Skills (ES)",
+      "code": "102003407",
+      "semester": "3CE1 ODD 2026-2027",
+      "colorArgb": 4285362816,
+      "minAttendance": 75,
+      "totalUnits": 5
+    },
+    {
+      "id": 7,
+      "name": "Product Ideation (PI)",
+      "code": "102003408",
+      "semester": "3CE1 ODD 2026-2027",
+      "colorArgb": 4282339765,
+      "minAttendance": 75,
+      "totalUnits": 5
+    }
+  ],
+  "sessions": [
+    {
+      "id": 0,
+      "subjectId": 2,
+      "dayOfWeek": 2,
+      "startMinutes": 655,
+      "endMinutes": 760,
+      "room": "1A4 | D003-2 | RV",
+      "isLab": true,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 5,
+      "dayOfWeek": 2,
+      "startMinutes": 805,
+      "endMinutes": 855,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 3,
+      "dayOfWeek": 2,
+      "startMinutes": 860,
+      "endMinutes": 910,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 7,
+      "dayOfWeek": 2,
+      "startMinutes": 915,
+      "endMinutes": 1020,
+      "room": "1A4 | C102 | WC",
+      "isLab": true,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 2,
+      "dayOfWeek": 3,
+      "startMinutes": 655,
+      "endMinutes": 705,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 4,
+      "dayOfWeek": 3,
+      "startMinutes": 710,
+      "endMinutes": 760,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 6,
+      "dayOfWeek": 3,
+      "startMinutes": 805,
+      "endMinutes": 855,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 1,
+      "dayOfWeek": 3,
+      "startMinutes": 860,
+      "endMinutes": 910,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 1,
+      "dayOfWeek": 3,
+      "startMinutes": 915,
+      "endMinutes": 1020,
+      "room": "1A4 | B006-1 | MBP",
+      "isLab": true,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 2,
+      "dayOfWeek": 4,
+      "startMinutes": 655,
+      "endMinutes": 705,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 3,
+      "dayOfWeek": 4,
+      "startMinutes": 710,
+      "endMinutes": 760,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 3,
+      "dayOfWeek": 4,
+      "startMinutes": 805,
+      "endMinutes": 910,
+      "room": "1A4 | C202 | TBT",
+      "isLab": true,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 1,
+      "dayOfWeek": 5,
+      "startMinutes": 655,
+      "endMinutes": 705,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 4,
+      "dayOfWeek": 5,
+      "startMinutes": 710,
+      "endMinutes": 760,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 5,
+      "dayOfWeek": 5,
+      "startMinutes": 805,
+      "endMinutes": 855,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 3,
+      "dayOfWeek": 5,
+      "startMinutes": 860,
+      "endMinutes": 910,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 2,
+      "dayOfWeek": 5,
+      "startMinutes": 915,
+      "endMinutes": 965,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 1,
+      "dayOfWeek": 6,
+      "startMinutes": 655,
+      "endMinutes": 705,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 4,
+      "dayOfWeek": 6,
+      "startMinutes": 710,
+      "endMinutes": 760,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 4,
+      "dayOfWeek": 6,
+      "startMinutes": 805,
+      "endMinutes": 855,
+      "room": "B105 / B103 (PSNM lab groups 1 and 2)",
+      "isLab": true,
+      "oneOffDateMillis": null
+    },
+    {
+      "id": 0,
+      "subjectId": 7,
+      "dayOfWeek": 6,
+      "startMinutes": 860,
+      "endMinutes": 910,
+      "room": "B105",
+      "isLab": false,
+      "oneOffDateMillis": null
+    }
+  ],
+  "attendance": [],
+  "attendanceOverrides": [],
+  "classNotes": [],
+  "tasks": [],
+  "expenses": [],
+  "budgets": [],
+  "subscriptions": [],
+  "warranties": [],
+  "scholarships": [],
+  "studyFiles": []
+}
