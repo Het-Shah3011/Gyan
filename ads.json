@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "ads": [
     {
-      "id": "sample-ad",
-      "enabled": false,
-      "title": "Your ad title",
-      "description": "A short description for students",
-      "imageUrl": "https://media.istockphoto.com/id/2149530993/photo/digital-human-head-concept-for-ai-metaverse-and-facial-recognition-technology.jpg?s=2048x2048&w=is&k=20&c=d23fZUtTjXCYd5V6wRB4-tdRzg7I7MWDQTTp8nHkl08=",
-      "link": "https://example.com",
-      "buttonText": "Open"
+      "id": "gyan-study-planner",
+      "enabled": true,
+      "title": "Your semester, organized",
+      "description": "Timetable, attendance, tasks and notes in GYAN",
+      "imageUrl": "https://raw.githubusercontent.com/Het-Shah3011/Gyan/main/ads/gyan-banner.png",
+      "link": "https://github.com/Het-Shah3011/Gyan/releases/latest",
+      "buttonText": "Explore"
     }
   ]
 }
